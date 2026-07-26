@@ -139,19 +139,24 @@ func parseBlock(node ast.Node, source []byte, doc *Document, issues *[]Issue) (B
 		b.Ordered, b.Start = n.IsOrdered(), n.Start
 		return b, true
 	case *ast.ListItem:
-		var inlines []Inline
+		item := Block{Kind: ListItem}
 		for child := n.FirstChild(); child != nil; child = child.NextSibling() {
 			if paragraph, ok := child.(*ast.TextBlock); ok {
-				inlines = append(inlines, parseInlines(paragraph, source, doc, issues)...)
+				item.Inlines = append(item.Inlines, parseInlines(paragraph, source, doc, issues)...)
 				continue
 			}
 			if paragraph, ok := child.(*ast.Paragraph); ok {
-				inlines = append(inlines, parseInlines(paragraph, source, doc, issues)...)
+				item.Inlines = append(item.Inlines, parseInlines(paragraph, source, doc, issues)...)
+				continue
+			}
+			if nested, ok := child.(*ast.List); ok {
+				parsed, _ := parseBlock(nested, source, doc, issues)
+				item.Children = append(item.Children, parsed)
 				continue
 			}
 			*issues = append(*issues, Issue{fmt.Sprintf("unsupported list item construct: %s", child.Kind())})
 		}
-		return Block{Kind: ListItem, Inlines: inlines}, true
+		return item, true
 	case *ast.ThematicBreak:
 		return Block{Kind: ThematicBreak}, true
 	case *mdast.FootnoteList:

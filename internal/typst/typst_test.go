@@ -50,6 +50,16 @@ func TestThematicBreakRendersAsOrnament(t *testing.T) {
 	}
 }
 
+func TestNestedListsRenderWithIndentation(t *testing.T) {
+	doc, parseIssues := markdown.Parse([]byte("- Top level\n  - Nested child\n"))
+	if issues := markdown.Validate(doc, parseIssues); len(issues) != 0 {
+		t.Fatal(markdown.FormatIssues(issues))
+	}
+	if source := Source(doc, style.Trade("en")); !strings.Contains(source, "- Top level\n  - Nested child") {
+		t.Fatalf("Typst source lost nested list indentation:\n%s", source)
+	}
+}
+
 func TestRunningHeadsUseBookAndChapterTitles(t *testing.T) {
 	doc, parseIssues := markdown.Parse([]byte("# Chapter Heading\n\nText.\n"))
 	if issues := markdown.Validate(doc, parseIssues); len(issues) != 0 {
@@ -242,7 +252,7 @@ func TestPDFSmokeAndDeterminismWhenTypstAvailable(t *testing.T) {
 	if _, err := exec.LookPath("typst"); err != nil {
 		t.Skip("typst not installed")
 	}
-	doc, parseIssues := markdown.Parse([]byte("# Title\n\n**1. Numbered bold lead.** Body text alpha follows here. A *word* from @ColtonBruc3 and a transcription \\<Moroni>.\n\n---\n\n**Strong** text.\n"))
+	doc, parseIssues := markdown.Parse([]byte("# Title\n\n**1. Numbered bold lead.** Body text alpha follows here. A *word* from @ColtonBruc3 and a transcription \\<Moroni>.\n\n- Parent item\n  - Nested item\n\n---\n\n**Strong** text.\n"))
 	if issues := markdown.Validate(doc, parseIssues); len(issues) != 0 {
 		t.Fatal(markdown.FormatIssues(issues))
 	}
@@ -269,5 +279,27 @@ func TestPDFSmokeAndDeterminismWhenTypstAvailable(t *testing.T) {
 	b, _ := os.ReadFile(second)
 	if !bytes.Equal(a, b) {
 		t.Fatal("PDF output is not deterministic")
+	}
+}
+
+func TestRenderWithOptionsWritesGeneratedSource(t *testing.T) {
+	if _, err := exec.LookPath("typst"); err != nil {
+		t.Skip("typst not installed")
+	}
+	doc, parseIssues := markdown.Parse([]byte("# Title\n\nText.\n"))
+	if issues := markdown.Validate(doc, parseIssues); len(issues) != 0 {
+		t.Fatal(markdown.FormatIssues(issues))
+	}
+	dir := t.TempDir()
+	sourcePath := filepath.Join(dir, "book.typ")
+	if err := RenderWithOptions(filepath.Join(dir, "book.pdf"), doc, style.Trade("en"), RenderOptions{SourcePath: sourcePath}); err != nil {
+		t.Fatal(err)
+	}
+	source, err := os.ReadFile(sourcePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(source), "= Title") {
+		t.Fatalf("generated Typst source was not written: %s", source)
 	}
 }

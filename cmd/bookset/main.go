@@ -96,6 +96,7 @@ func render(args []string) {
 	configPath := flags.String("config", "", "project TOML configuration")
 	sheet := flags.String("sheet", "", "proof sheet: letter (keeps the configured trim size inside the sheet)")
 	trimMarks := flags.Bool("trim-marks", false, "draw crop marks around the configured trim boundary")
+	typstSource := flags.String("typst-source", "", "write generated Typst source to FILE (PDF only)")
 	flags.Parse(args)
 
 	if flags.NArg() != 1 {
@@ -164,12 +165,16 @@ func render(args []string) {
 		cfg.TrimMarks = true
 	}
 	if *format == "epub" {
+		if *typstSource != "" {
+			fmt.Fprintln(os.Stderr, "bookset: --typst-source requires --format pdf")
+			os.Exit(2)
+		}
 		err = epub.Write(*output, doc, cfg)
 		if err == nil {
 			err = epub.Validate(*output)
 		}
 	} else {
-		err = typst.Render(*output, doc, cfg)
+		err = typst.RenderWithOptions(*output, doc, cfg, typst.RenderOptions{SourcePath: *typstSource})
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "bookset:", err)
@@ -182,6 +187,7 @@ func build(args []string) {
 	format := flags.String("format", "pdf", "output format: pdf or epub")
 	output := flags.String("output", "", "output path")
 	configPath := flags.String("config", "", "book TOML configuration")
+	typstSource := flags.String("typst-source", "", "write generated Typst source to FILE (PDF only)")
 	flags.Parse(args)
 	if *configPath == "" || *output == "" || flags.NArg() != 0 {
 		fmt.Fprintln(os.Stderr, "usage: bookset build --config bookset.toml --format pdf|epub --output FILE")
@@ -202,12 +208,16 @@ func build(args []string) {
 		os.Exit(1)
 	}
 	if *format == "epub" {
+		if *typstSource != "" {
+			fmt.Fprintln(os.Stderr, "bookset: --typst-source requires --format pdf")
+			os.Exit(2)
+		}
 		err = epub.WriteBook(*output, manuscript.Chapters, manuscript.Style)
 		if err == nil {
 			err = epub.Validate(*output)
 		}
 	} else {
-		err = typst.RenderDocuments(*output, manuscript.Chapters, manuscript.Style)
+		err = typst.RenderDocumentsWithOptions(*output, manuscript.Chapters, manuscript.Style, typst.RenderOptions{SourcePath: *typstSource})
 	}
 	if err == nil {
 		if issues := artifact.ValidateDocumentsWithStyle(*output, manuscript.Chapters, manuscript.Style); len(issues) > 0 {
@@ -410,10 +420,10 @@ func usage() {
 	fmt.Println("bookset — deterministic book rendering")
 	fmt.Println()
 	fmt.Println("Usage:")
-	fmt.Println("  bookset render --format pdf|epub --output FILE INPUT.md")
+	fmt.Println("  bookset render --format pdf|epub [--typst-source FILE] --output FILE INPUT.md")
 	fmt.Println("  bookset render --format pdf --sheet letter --trim-marks --output FILE INPUT.md")
 	fmt.Println("  bookset render --format pdf|epub --style trade|classic-trade|timeline-trade --output FILE INPUT.md")
-	fmt.Println("  bookset build --config bookset.toml --format pdf|epub --output FILE")
+	fmt.Println("  bookset build --config bookset.toml --format pdf|epub [--typst-source FILE] --output FILE")
 	fmt.Println("  bookset validate [--config bookset.toml] [--artifact FILE] INPUT.md")
 	fmt.Println("  bookset inspect [--json] INPUT.md")
 	fmt.Println("  bookset inspect --artifact FILE [--config bookset.toml | INPUT.md] [--json] [--strict]")

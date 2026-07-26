@@ -65,7 +65,11 @@ func blockText(block Block) string {
 		return out
 	}
 	if block.Kind == ListItem {
-		return inlineText(block.Inlines) + "\n"
+		out := inlineText(block.Inlines) + "\n"
+		for _, child := range block.Children {
+			out += blockText(child)
+		}
+		return out
 	}
 	return inlineText(block.Inlines) + "\n"
 }

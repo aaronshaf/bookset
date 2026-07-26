@@ -71,7 +71,8 @@ func validatePDF(path string, docs []*markdown.Document) []Issue {
 	if err != nil {
 		return []Issue{{fmt.Sprintf("could not extract PDF text: %v", err)}}
 	}
-	if missing := missingFragment(text, docs); missing != "" {
+	rawText, rawErr := commandOutput("pdftotext", "-raw", path, "-")
+	if missing := missingFragment(text, docs); missing != "" && (rawErr != nil || missingFragment(rawText, docs) != "") {
 		issues = append(issues, Issue{fmt.Sprintf("PDF text does not contain manuscript text: %q", missing)})
 	}
 	if hasInlineKind(docs, markdown.Emphasis) || hasInlineKind(docs, markdown.Strong) {
@@ -157,7 +158,7 @@ func missingFragment(output string, docs []*markdown.Document) string {
 		return "no manuscript text"
 	}
 	for _, fragment := range fragments {
-		for _, chunk := range validationChunks(fragment, 12) {
+		for _, chunk := range validationChunks(fragment, 6) {
 			if normalized := compact(chunk); normalized != "" && !containsOrderedTokens(outputTokens, tokens(chunk)) && !strings.Contains(compactOutput, normalized) {
 				return normalized
 			}

@@ -227,7 +227,7 @@ func renderBlocks(blocks []semantic.Block, doc semantic.Document) string {
 			}
 			fmt.Fprintf(&b, "<%s>", tag)
 			for _, item := range v.Children {
-				b.WriteString("<li>" + inline(item.Inlines, doc) + "</li>")
+				b.WriteString("<li>" + inline(item.Inlines, doc) + renderBlocks(item.Children, doc) + "</li>")
 			}
 			fmt.Fprintf(&b, "</%s>", tag)
 		case semantic.ThematicBreak:

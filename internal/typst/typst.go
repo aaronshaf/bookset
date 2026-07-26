@@ -149,7 +149,21 @@ func Render(path string, doc *markdown.Document, cfg style.Config) error {
 	return RenderDocuments(path, []*markdown.Document{doc}, cfg)
 }
 
+type RenderOptions struct {
+	// SourcePath writes the exact generated Typst source used for compilation.
+	// It is useful for diagnosing a Typst error outside bookset.
+	SourcePath string
+}
+
+func RenderWithOptions(path string, doc *markdown.Document, cfg style.Config, options RenderOptions) error {
+	return RenderDocumentsWithOptions(path, []*markdown.Document{doc}, cfg, options)
+}
+
 func RenderDocuments(path string, docs []*markdown.Document, cfg style.Config) error {
+	return RenderDocumentsWithOptions(path, docs, cfg, RenderOptions{})
+}
+
+func RenderDocumentsWithOptions(path string, docs []*markdown.Document, cfg style.Config, options RenderOptions) error {
 	typst, err := exec.LookPath("typst")
 	if err != nil {
 		return fmt.Errorf("typst is required for PDF rendering: %w", err)
@@ -162,21 +176,24 @@ func RenderDocuments(path string, docs []*markdown.Document, cfg style.Config) e
 			return err
 		}
 	}
+	sourceText, err := renderSource(docs, cfg)
+	if err != nil {
+		return err
+	}
+	if options.SourcePath != "" {
+		if err := os.MkdirAll(filepath.Dir(options.SourcePath), 0755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(options.SourcePath, []byte(sourceText), 0644); err != nil {
+			return err
+		}
+	}
 	tmp, err := os.MkdirTemp("", "bookset-typst-")
 	if err != nil {
 		return err
 	}
 	defer os.RemoveAll(tmp)
 	source := filepath.Join(tmp, "book.typ")
-	sourceText := SourceDocuments(docs, cfg)
-	if cfg.TemplateDir != "" {
-		data, readErr := os.ReadFile(filepath.Join(cfg.TemplateDir, "chapter.typ"))
-		if readErr == nil {
-			sourceText = sourceDocumentsFromTemplate(docs, cfg, string(data))
-		} else if cfg.TemplateRequired {
-			return fmt.Errorf("configured Typst template unavailable: %w", readErr)
-		}
-	}
 	if err := os.WriteFile(source, []byte(sourceText), 0644); err != nil {
 		return err
 	}
@@ -191,9 +208,27 @@ func RenderDocuments(path string, docs []*markdown.Document, cfg style.Config) e
 	cmd := exec.Command(typst, args...)
 	cmd.Env = append(os.Environ(), "SOURCE_DATE_EPOCH=0", "LANG="+cfg.Language+"_US.UTF-8", "LC_ALL="+cfg.Language+"_US.UTF-8")
 	if output, err := cmd.CombinedOutput(); err != nil {
+		if options.SourcePath != "" {
+			return fmt.Errorf("typst compile (source: %s): %w: %s", options.SourcePath, err, bytes.TrimSpace(output))
+		}
 		return fmt.Errorf("typst compile: %w: %s", err, bytes.TrimSpace(output))
 	}
 	return nil
+}
+
+func renderSource(docs []*markdown.Document, cfg style.Config) (string, error) {
+	sourceText := SourceDocuments(docs, cfg)
+	if cfg.TemplateDir == "" {
+		return sourceText, nil
+	}
+	data, err := os.ReadFile(filepath.Join(cfg.TemplateDir, "chapter.typ"))
+	if err == nil {
+		return sourceDocumentsFromTemplate(docs, cfg, string(data)), nil
+	}
+	if cfg.TemplateRequired {
+		return "", fmt.Errorf("configured Typst template unavailable: %w", err)
+	}
+	return sourceText, nil
 }
 
 type fontLock struct {
@@ -382,6 +417,10 @@ func extraLeading(body, leading string) string {
 }
 
 func writeBlock(b *strings.Builder, block semantic.Block, doc semantic.Document, cfg style.Config) {
+	writeBlockIndented(b, block, doc, cfg, "")
+}
+
+func writeBlockIndented(b *strings.Builder, block semantic.Block, doc semantic.Document, cfg style.Config, indent string) {
 	switch block.Kind {
 	case semantic.Heading:
 		if block.Level == 1 {
@@ -393,7 +432,7 @@ func writeBlock(b *strings.Builder, block semantic.Block, doc semantic.Document,
 	case semantic.Quote:
 		b.WriteString("#block(breakable: false, inset: (left: 0.35in, right: 0.30in), above: .9em, below: .9em)[")
 		for _, child := range block.Children {
-			writeBlock(b, child, doc, cfg)
+			writeBlockIndented(b, child, doc, cfg, indent)
 		}
 		b.WriteString("]\n")
 	case semantic.List:
@@ -402,7 +441,10 @@ func writeBlock(b *strings.Builder, block semantic.Block, doc semantic.Document,
 			if block.Ordered {
 				marker = fmt.Sprintf("%d.", block.Start+i)
 			}
-			fmt.Fprintf(b, "%s %s\n", marker, inline(child.Inlines, doc))
+			fmt.Fprintf(b, "%s%s %s\n", indent, marker, inline(child.Inlines, doc))
+			for _, nested := range child.Children {
+				writeBlockIndented(b, nested, doc, cfg, indent+"  ")
+			}
 		}
 	case semantic.ThematicBreak:
 		b.WriteString("#align(center)[#text(size: 9pt)[• • •]]\n")

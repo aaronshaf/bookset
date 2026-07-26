@@ -83,6 +83,16 @@ func TestThematicBreakAndLiteralAngleBracketsReachEPUB(t *testing.T) {
 	}
 }
 
+func TestNestedListsReachEPUB(t *testing.T) {
+	doc, parseIssues := markdown.Parse([]byte("- Top level\n  - Nested child\n"))
+	if issues := markdown.Validate(doc, parseIssues); len(issues) != 0 {
+		t.Fatal(markdown.FormatIssues(issues))
+	}
+	if content := content(doc, style.Trade("en")); !strings.Contains(content, "<li>Top level<ul><li>Nested child</li></ul></li>") {
+		t.Fatalf("EPUB content lost nested list: %s", content)
+	}
+}
+
 func TestStylesheetReceivesStyleTypography(t *testing.T) {
 	cfg := style.Trade("en")
 	cfg.BodyFont, cfg.HeadingFont, cfg.UtilityFont = "Test Body", "Test Heading", "Test Utility"

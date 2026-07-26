@@ -45,6 +45,7 @@ external inputs and are not distributed by this repository.
 go run ./cmd/bookset version
 go run ./cmd/bookset doctor --config bookset.book.example.toml
 go run ./cmd/bookset render --format pdf --output out/book.pdf testdata/field-notes.md
+go run ./cmd/bookset render --format pdf --typst-source out/book.typ --output out/book.pdf testdata/field-notes.md
 go run ./cmd/bookset render --format epub --output out/book.epub testdata/field-notes.md
 go run ./cmd/bookset validate testdata/field-notes.md
 go run ./cmd/bookset validate --artifact out/book.pdf testdata/field-notes.md
@@ -107,6 +108,9 @@ precedence, which is useful for an interlude or a deliberately named chapter.
 Custom template directories are trusted publishing inputs. Rendering a custom
 Typst template evaluates its Typst source, so do not render templates obtained
 from an untrusted party.
+When a Typst compilation error needs deeper diagnosis, pass `--typst-source
+out/book.typ` to `render` or `build`; bookset writes the exact generated source
+before compilation and includes that path in any compile error.
 The `github.com/santhosh-tekuri/jsonschema/v6` dependency validates the
 versioned machine-readable inspection contract in tests and CI.
 

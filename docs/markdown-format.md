@@ -25,7 +25,7 @@ single-line `key: value` pairs; it does not implement full YAML.
 - headings;
 - paragraphs and block quotes;
 - thematic breaks (`---`, rendered as a centered ornament in PDF and a rule in EPUB);
-- ordered and unordered lists with inline list-item content;
+- ordered and unordered lists, including nested lists;
 - emphasis, strong emphasis, nested emphasis, and inline code;
 - footnote references and definitions;
 - literal angle-bracket transcription such as `\<Moroni>` and character

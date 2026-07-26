@@ -69,3 +69,19 @@ func TestThematicBreakIsSupported(t *testing.T) {
 		t.Fatalf("thematic break was not preserved: %#v", doc.Blocks)
 	}
 }
+
+func TestNestedListsPreserveStructureAndText(t *testing.T) {
+	doc, parseIssues := Parse([]byte("- Top level item\n  - Nested child one\n  - Nested child two\n- Another top item\n"))
+	if issues := Validate(doc, parseIssues); len(issues) != 0 {
+		t.Fatal(FormatIssues(issues))
+	}
+	list := doc.Blocks[0]
+	if len(list.Children) != 2 || len(list.Children[0].Children) != 1 || list.Children[0].Children[0].Kind != List {
+		t.Fatalf("nested list structure was lost: %#v", list)
+	}
+	for _, want := range []string{"Top level item", "Nested child one", "Nested child two", "Another top item"} {
+		if !strings.Contains(doc.PlainText(), want) {
+			t.Errorf("plain text missing %q: %q", want, doc.PlainText())
+		}
+	}
+}
