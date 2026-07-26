@@ -140,6 +140,11 @@ front/main/back reading-order semantics, and typed footnote references. These
 are useful accessibility signals, but they are not a claim of formal EPUB
 Accessibility conformance.
 
+To package an EPUB cover, set `[book].cover` to a JPEG, PNG, WebP, or SVG
+asset and provide `cover_alt`. Bookset validates the format, adds the image as
+the EPUB `cover-image`, places a cover page first in the spine, and adds a
+cover landmark.
+
 Typed entries can also set `print_section = "front"`, `"main"`, or `"back"`.
 The default follows the kind: front matter and the PDF TOC are front, parts and
 chapters are main, and back matter is back. Front matter uses lowercase Roman

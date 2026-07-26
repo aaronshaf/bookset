@@ -37,6 +37,8 @@ type Config struct {
 	BookTitle              string
 	BookAuthor             string
 	BookModified           string
+	CoverPath              string
+	CoverAlt               string
 	PageBreakAfterThenNow  bool
 	PageBreakAfterTimeline bool
 	HideTimelineHeading    bool
@@ -83,6 +85,12 @@ func ApplyProject(cfg Config, project config.Project) (Config, error) {
 			return Config{}, fmt.Errorf("book.modified must be RFC 3339: %w", err)
 		}
 		cfg.BookModified = modified.UTC().Format(time.RFC3339)
+	}
+	if project.Book.Cover != "" {
+		cfg.CoverPath, cfg.CoverAlt = project.Book.Cover, project.Book.CoverAlt
+		if cfg.CoverAlt == "" {
+			return Config{}, fmt.Errorf("book.cover_alt is required when book.cover is set")
+		}
 	}
 	if value := project.Typography.BodyFont; value != "" {
 		cfg.BodyFont = value

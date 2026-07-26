@@ -24,6 +24,8 @@ type Book struct {
 	Title            string `toml:"title"`
 	Author           string `toml:"author"`
 	Modified         string `toml:"modified"`
+	Cover            string `toml:"cover"`
+	CoverAlt         string `toml:"cover_alt"`
 	Language         string `toml:"language"`
 	Trim             string `toml:"trim"`
 	ChapterLabel     string `toml:"chapter_label"`
@@ -91,6 +93,7 @@ func Load(path string) (Project, error) {
 			return Project{}, absoluteErr
 		}
 		project.BaseDir = filepath.Dir(absolute)
+		project.Book.Cover = resolvePath(project.BaseDir, project.Book.Cover)
 		project.TemplatesConfigured = project.Templates.Dir != ""
 		if project.Templates.Dir == "" {
 			project.Templates.Dir = filepath.Join(project.BaseDir, "templates")

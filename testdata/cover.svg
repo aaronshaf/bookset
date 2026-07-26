@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="2560" viewBox="0 0 1600 2560" role="img" aria-labelledby="title description">
+  <title id="title">The Practice of Careful History</title>
+  <desc id="description">A simple blue book cover with the title in white type.</desc>
+  <rect width="1600" height="2560" fill="#173c5e"/>
+  <rect x="130" y="130" width="1340" height="2300" fill="none" stroke="#a9c6da" stroke-width="8"/>
+  <text x="800" y="1080" fill="#ffffff" font-family="serif" font-size="108" text-anchor="middle">THE PRACTICE</text>
+  <text x="800" y="1220" fill="#ffffff" font-family="serif" font-size="108" text-anchor="middle">OF CAREFUL HISTORY</text>
+  <text x="800" y="1430" fill="#a9c6da" font-family="sans-serif" font-size="42" letter-spacing="10" text-anchor="middle">EXAMPLE EDITION</text>
+</svg>

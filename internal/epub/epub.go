@@ -46,8 +46,16 @@ func WriteBook(path string, docs []*markdown.Document, cfg style.Config) error {
 	if err != nil {
 		return fmt.Errorf("render EPUB stylesheet: %w", err)
 	}
+	cover, err := loadCover(cfg)
+	if err != nil {
+		return err
+	}
 	contentNames := make([]string, len(docs))
 	files := map[string][]byte{"mimetype": []byte("application/epub+zip"), "META-INF/container.xml": []byte(containerXML), "OEBPS/style.css": renderedStyles}
+	if cover != nil {
+		files["OEBPS/"+cover.name] = cover.data
+		files["OEBPS/cover.xhtml"] = []byte(coverContent(cfg.Language, cover))
+	}
 	for i, doc := range docs {
 		name := "content.xhtml"
 		if len(docs) > 1 {
@@ -56,8 +64,8 @@ func WriteBook(path string, docs []*markdown.Document, cfg style.Config) error {
 		contentNames[i] = name
 		files["OEBPS/"+name] = []byte(content(doc, cfg))
 	}
-	files["OEBPS/nav.xhtml"] = []byte(bookNav(docs, contentNames))
-	files["OEBPS/package.opf"] = []byte(bookOPF(docs, contentNames, cfg))
+	files["OEBPS/nav.xhtml"] = []byte(bookNav(docs, contentNames, cover != nil))
+	files["OEBPS/package.opf"] = []byte(bookOPF(docs, contentNames, cfg, cover))
 	keys := make([]string, 0, len(files))
 	for key := range files {
 		if key != "mimetype" {
@@ -92,6 +100,35 @@ func WriteBook(path string, docs []*markdown.Document, cfg style.Config) error {
 		}
 	}
 	return zw.Close()
+}
+
+type coverAsset struct {
+	name, mediaType, alt string
+	data                 []byte
+}
+
+func loadCover(cfg style.Config) (*coverAsset, error) {
+	if cfg.CoverPath == "" {
+		return nil, nil
+	}
+	ext := strings.ToLower(filepath.Ext(cfg.CoverPath))
+	mediaTypes := map[string]string{".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".svg": "image/svg+xml"}
+	mediaType := mediaTypes[ext]
+	if mediaType == "" {
+		return nil, fmt.Errorf("unsupported cover format %q; use JPEG, PNG, WebP, or SVG", ext)
+	}
+	data, err := os.ReadFile(filepath.Clean(cfg.CoverPath))
+	if err != nil {
+		return nil, fmt.Errorf("read cover image: %w", err)
+	}
+	if len(data) == 0 {
+		return nil, fmt.Errorf("cover image is empty")
+	}
+	return &coverAsset{name: "cover" + ext, mediaType: mediaType, alt: cfg.CoverAlt, data: data}, nil
+}
+
+func coverContent(language string, cover *coverAsset) string {
+	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="%s" xml:lang="%s"><head><title>Cover</title><link rel="stylesheet" type="text/css" href="style.css"/></head><body epub:type="cover"><section epub:type="cover"><img src="%s" alt="%s"/></section></body></html>`, esc(language), esc(language), esc(cover.name), esc(cover.alt))
 }
 
 // spineDocuments omits the print-only TOC document. EPUB navigation is
@@ -171,7 +208,7 @@ func Validate(path string) error {
 }
 
 const containerXML = `<?xml version="1.0" encoding="UTF-8"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`
-const css = `body{font-family:"{{.BodyFont}}";font-size:{{.BodySize}};line-height:1.45}h1,h2,h3{font-family:"{{.HeadingFont}}"}.chapter-label,.then-now strong,.timeline-item strong{font-family:"{{.UtilityFont}}"}blockquote{margin:1em 2em;font-style:italic}li{margin:.3em 0}.footnotes{border-top:1px solid #999;margin-top:2em;font-size:.9em}`
+const css = `body{font-family:"{{.BodyFont}}";font-size:{{.BodySize}};line-height:1.45}h1,h2,h3{font-family:"{{.HeadingFont}}"}.chapter-label,.then-now strong,.timeline-item strong{font-family:"{{.UtilityFont}}"}blockquote{margin:1em 2em;font-style:italic}li{margin:.3em 0}.footnotes{border-top:1px solid #999;margin-top:2em;font-size:.9em}body[epub|type~="cover"]{margin:0;padding:0;text-align:center}section[epub|type~="cover"] img{max-width:100%;max-height:100vh}`
 
 type styleTemplateData struct {
 	BodyFont, HeadingFont, UtilityFont, BodySize string
@@ -298,13 +335,13 @@ func bodyType(doc *markdown.Document) string {
 	}
 }
 
-func bookNav(docs []*markdown.Document, names []string) string {
+func bookNav(docs []*markdown.Document, names []string, hasCover bool) string {
 	nodes := navigationNodes(docs, names)
 	var b strings.Builder
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>Contents</title></head><body><nav epub:type="toc" id="toc"><h1>Contents</h1><ol>`)
 	writeNavNodes(&b, nodes)
 	b.WriteString(`</ol></nav>`)
-	if landmarks := landmarkNodes(docs, names); len(landmarks) > 0 {
+	if landmarks := landmarkNodes(docs, names, hasCover); len(landmarks) > 0 {
 		b.WriteString(`<nav epub:type="landmarks" hidden=""><h2>Landmarks</h2><ol>`)
 		for _, landmark := range landmarks {
 			fmt.Fprintf(&b, `<li><a epub:type="%s" href="%s">%s</a></li>`, landmark.kind, landmark.href, landmark.title)
@@ -357,9 +394,12 @@ func writeNavNodes(b *strings.Builder, nodes []navNode) {
 
 type landmarkNode struct{ kind, href, title string }
 
-func landmarkNodes(docs []*markdown.Document, names []string) []landmarkNode {
+func landmarkNodes(docs []*markdown.Document, names []string, hasCover bool) []landmarkNode {
 	seen := map[string]bool{}
 	landmarks := make([]landmarkNode, 0, 3)
+	if hasCover {
+		landmarks = append(landmarks, landmarkNode{kind: "cover", href: "cover.xhtml", title: "Cover"})
+	}
 	for i, doc := range docs {
 		kind, title := "", ""
 		switch doc.PrintSection {
@@ -378,7 +418,7 @@ func landmarkNodes(docs []*markdown.Document, names []string) []landmarkNode {
 	return landmarks
 }
 
-func bookOPF(docs []*markdown.Document, names []string, cfg style.Config) string {
+func bookOPF(docs []*markdown.Document, names []string, cfg style.Config, cover *coverAsset) string {
 	var b strings.Builder
 	title := cfg.BookTitle
 	if title == "" {
@@ -397,10 +437,16 @@ func bookOPF(docs []*markdown.Document, names []string, cfg style.Config) string
 		fmt.Fprintf(&b, `<dc:creator>%s</dc:creator>`, esc(author))
 	}
 	fmt.Fprintf(&b, `<dc:language>%s</dc:language><meta property="dcterms:modified">%s</meta><meta property="schema:accessMode">textual</meta><meta property="schema:accessibilityFeature">structuralNavigation</meta><meta property="schema:accessibilityFeature">tableOfContents</meta></metadata><manifest>`, esc(docs[0].Language), esc(modified))
+	if cover != nil {
+		fmt.Fprintf(&b, `<item id="cover" href="cover.xhtml" media-type="application/xhtml+xml"/><item id="cover-image" href="%s" media-type="%s" properties="cover-image"/>`, cover.name, cover.mediaType)
+	}
 	for i, name := range names {
 		fmt.Fprintf(&b, `<item id="content-%03d" href="%s" media-type="application/xhtml+xml"/>`, i+1, name)
 	}
 	b.WriteString(`<item id="style" href="style.css" media-type="text/css"/><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/></manifest><spine>`)
+	if cover != nil {
+		b.WriteString(`<itemref idref="cover"/>`)
+	}
 	for i := range names {
 		fmt.Fprintf(&b, `<itemref idref="content-%03d"/>`, i+1)
 	}

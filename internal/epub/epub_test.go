@@ -108,7 +108,7 @@ func TestBookNavigationHonorsTOCEligibility(t *testing.T) {
 	front := &markdown.Document{Title: "Preface", ExcludeFromTOC: true}
 	part := &markdown.Document{Title: "Part I"}
 	chapter := &markdown.Document{Title: "Chapter One"}
-	nav := bookNav([]*markdown.Document{front, part, chapter}, []string{"front.xhtml", "part.xhtml", "chapter.xhtml"})
+	nav := bookNav([]*markdown.Document{front, part, chapter}, []string{"front.xhtml", "part.xhtml", "chapter.xhtml"}, false)
 	if strings.Contains(nav, "Preface") || !strings.Contains(nav, "Part I") || !strings.Contains(nav, "Chapter One") {
 		t.Fatalf("unexpected EPUB navigation: %s", nav)
 	}
@@ -121,7 +121,7 @@ func TestPrintTOCIsExcludedFromEPUBSpine(t *testing.T) {
 	if len(spine) != 1 || spine[0] != chapter {
 		t.Fatalf("unexpected EPUB spine: %#v", spine)
 	}
-	if nav := bookNav(spine, []string{"chapter.xhtml"}); strings.Contains(nav, `href="contents.xhtml"`) || !strings.Contains(nav, "Chapter One") {
+	if nav := bookNav(spine, []string{"chapter.xhtml"}, false); strings.Contains(nav, `href="contents.xhtml"`) || !strings.Contains(nav, "Chapter One") {
 		t.Fatalf("unexpected EPUB navigation: %s", nav)
 	}
 }
@@ -129,7 +129,7 @@ func TestPrintTOCIsExcludedFromEPUBSpine(t *testing.T) {
 func TestBookNavigationNestsChaptersUnderParts(t *testing.T) {
 	part := &markdown.Document{BookKind: "part", Title: "Part I"}
 	chapter := &markdown.Document{BookKind: "chapter", Title: "Chapter One"}
-	nav := bookNav([]*markdown.Document{part, chapter}, []string{"part.xhtml", "chapter.xhtml"})
+	nav := bookNav([]*markdown.Document{part, chapter}, []string{"part.xhtml", "chapter.xhtml"}, false)
 	want := `<li><a href="part.xhtml">Part I</a><ol><li><a href="chapter.xhtml">Chapter One</a></li></ol></li>`
 	if !strings.Contains(nav, want) {
 		t.Fatalf("EPUB navigation is not nested: %s", nav)
@@ -140,7 +140,7 @@ func TestBookNavigationIncludesSectionLandmarks(t *testing.T) {
 	front := &markdown.Document{Title: "Preface", PrintSection: "front"}
 	chapter := &markdown.Document{Title: "Chapter One", PrintSection: "main"}
 	back := &markdown.Document{Title: "Notes", PrintSection: "back"}
-	nav := bookNav([]*markdown.Document{front, chapter, back}, []string{"front.xhtml", "chapter.xhtml", "back.xhtml"})
+	nav := bookNav([]*markdown.Document{front, chapter, back}, []string{"front.xhtml", "chapter.xhtml", "back.xhtml"}, false)
 	for _, want := range []string{`epub:type="landmarks"`, `epub:type="frontmatter" href="front.xhtml"`, `epub:type="bodymatter" href="chapter.xhtml"`, `epub:type="backmatter" href="back.xhtml"`} {
 		if !strings.Contains(nav, want) {
 			t.Errorf("navigation missing %q: %s", want, nav)
@@ -152,11 +152,40 @@ func TestBookOPFUsesBookMetadataAndModifiedTime(t *testing.T) {
 	doc := &markdown.Document{Title: "Chapter", Author: "Chapter Author", Language: "en"}
 	cfg := style.Trade("en")
 	cfg.BookTitle, cfg.BookAuthor, cfg.BookModified = "Book Title", "Book Author", "2026-07-26T12:00:00Z"
-	opf := bookOPF([]*markdown.Document{doc}, []string{"content.xhtml"}, cfg)
+	opf := bookOPF([]*markdown.Document{doc}, []string{"content.xhtml"}, cfg, nil)
 	for _, want := range []string{`<dc:title>Book Title</dc:title>`, `<dc:creator>Book Author</dc:creator>`, `<meta property="dcterms:modified">2026-07-26T12:00:00Z</meta>`, `property="schema:accessMode">textual`, `property="schema:accessibilityFeature">structuralNavigation`} {
 		if !strings.Contains(opf, want) {
 			t.Errorf("OPF missing %q: %s", want, opf)
 		}
+	}
+}
+
+func TestCoverIsPackagedAndDeclared(t *testing.T) {
+	dir := t.TempDir()
+	coverPath := filepath.Join(dir, "cover.png")
+	if err := os.WriteFile(coverPath, []byte("not-a-real-image"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg := style.Trade("en")
+	cfg.CoverPath, cfg.CoverAlt = coverPath, "A blue cover"
+	cover, err := loadCover(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cover.name != "cover.png" || cover.mediaType != "image/png" {
+		t.Fatalf("unexpected cover: %#v", cover)
+	}
+	if page := coverContent("en", cover); !strings.Contains(page, `alt="A blue cover"`) || !strings.Contains(page, `epub:type="cover"`) {
+		t.Fatalf("invalid cover page: %s", page)
+	}
+	opf := bookOPF([]*markdown.Document{{Title: "Book", Language: "en"}}, []string{"content.xhtml"}, cfg, cover)
+	for _, want := range []string{`id="cover-image"`, `properties="cover-image"`, `<itemref idref="cover"/>`} {
+		if !strings.Contains(opf, want) {
+			t.Errorf("OPF missing %q: %s", want, opf)
+		}
+	}
+	if nav := bookNav([]*markdown.Document{{Title: "Book", PrintSection: "main"}}, []string{"content.xhtml"}, true); !strings.Contains(nav, `epub:type="cover" href="cover.xhtml"`) {
+		t.Fatalf("cover landmark missing: %s", nav)
 	}
 }
 
