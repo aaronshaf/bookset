@@ -4,6 +4,7 @@ author = "Example Author"
 modified = "2026-07-26T00:00:00Z"
 cover = "testdata/cover.svg"
 cover_alt = "Blue cover for The Practice of Careful History"
+title_page = true
 language = "en"
 trim = "6x9"
 chapter_label = "CHAPTER"

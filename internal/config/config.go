@@ -26,6 +26,7 @@ type Book struct {
 	Modified         string `toml:"modified"`
 	Cover            string `toml:"cover"`
 	CoverAlt         string `toml:"cover_alt"`
+	TitlePage        bool   `toml:"title_page"`
 	Language         string `toml:"language"`
 	Trim             string `toml:"trim"`
 	ChapterLabel     string `toml:"chapter_label"`

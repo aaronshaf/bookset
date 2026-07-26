@@ -111,6 +111,21 @@ func TestSourceDocumentsSetsFrontAndMainFolioPolicy(t *testing.T) {
 	}
 }
 
+func TestSourceDocumentsIncludesConfiguredCoverAndTitlePage(t *testing.T) {
+	doc, issues := markdown.Parse([]byte("# Chapter One\n\nText.\n"))
+	if len(issues) != 0 {
+		t.Fatal(markdown.FormatIssues(issues))
+	}
+	cfg := style.Trade("en")
+	cfg.CoverPath, cfg.TitlePage, cfg.BookTitle, cfg.BookAuthor = "cover.svg", true, "Book Title", "Book Author"
+	source := Source(doc, cfg)
+	for _, want := range []string{`#image("cover.svg", width: 100%)`, `Book Title`, `Book Author`, `#bookset-running-heads.update(false)`} {
+		if !strings.Contains(source, want) {
+			t.Errorf("source missing %q:\n%s", want, source)
+		}
+	}
+}
+
 func TestSourceMarkersAndDiagnosticMapping(t *testing.T) {
 	doc, parseIssues := markdown.Parse([]byte("# Title\n\nParagraph.\n"))
 	if issues := markdown.Validate(doc, parseIssues); len(issues) != 0 {

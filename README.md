@@ -145,6 +145,11 @@ asset and provide `cover_alt`. Bookset validates the format, adds the image as
 the EPUB `cover-image`, places a cover page first in the spine, and adds a
 cover landmark.
 
+Set `[book].title_page = true` to add the same cover image and a title/author
+page before the PDF book sequence. PDF rendering stages that asset inside
+Typst's isolated render directory; it does not alter a legacy manifest unless
+you enable the option.
+
 Typed entries can also set `print_section = "front"`, `"main"`, or `"back"`.
 The default follows the kind: front matter and the PDF TOC are front, parts and
 chapters are main, and back matter is back. Front matter uses lowercase Roman

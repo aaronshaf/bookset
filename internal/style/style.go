@@ -39,6 +39,7 @@ type Config struct {
 	BookModified           string
 	CoverPath              string
 	CoverAlt               string
+	TitlePage              bool
 	PageBreakAfterThenNow  bool
 	PageBreakAfterTimeline bool
 	HideTimelineHeading    bool
@@ -91,6 +92,9 @@ func ApplyProject(cfg Config, project config.Project) (Config, error) {
 		if cfg.CoverAlt == "" {
 			return Config{}, fmt.Errorf("book.cover_alt is required when book.cover is set")
 		}
+	}
+	if project.Book.TitlePage {
+		cfg.TitlePage = true
 	}
 	if value := project.Typography.BodyFont; value != "" {
 		cfg.BodyFont = value

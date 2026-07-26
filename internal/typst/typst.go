@@ -42,8 +42,9 @@ func sourceDocumentsFromTemplate(docs []*markdown.Document, cfg style.Config, te
 	doc := docs[0]
 	setup := setup(doc, cfg)
 	var content strings.Builder
+	hasPreamble := writeBookPreamble(&content, cfg)
 	for i, chapter := range docs {
-		if i > 0 {
+		if i > 0 || hasPreamble {
 			if chapter.BookKind == "" || chapter.BookKind == "chapter" {
 				if title := chapterTitle(chapter); title != "" {
 					fmt.Fprintf(&content, "#bookset-chapter.update([%s])\n", typstEscape(title))
@@ -74,6 +75,23 @@ func sourceDocumentsFromTemplate(docs []*markdown.Document, cfg style.Config, te
 		return setup + "\n" + content.String()
 	}
 	return out.String()
+}
+
+func writeBookPreamble(content *strings.Builder, cfg style.Config) bool {
+	if cfg.CoverPath == "" && !cfg.TitlePage {
+		return false
+	}
+	content.WriteString("#bookset-running-heads.update(false)\n")
+	if cfg.CoverPath != "" {
+		fmt.Fprintf(content, "#align(center + horizon)[#image(\"%s\", width: 100%%)]\n", typstRawString(cfg.CoverPath))
+		if cfg.TitlePage {
+			content.WriteString("#pagebreak()\n")
+		}
+	}
+	if cfg.TitlePage {
+		fmt.Fprintf(content, "#align(center)[#v(2.1in)#text(font: %q, size: 25pt, weight: \"bold\")[%s]#v(1.1in)#text(font: %q, size: 12pt)[%s]]\n", cfg.HeadingFont, typstEscape(cfg.BookTitle), cfg.UtilityFont, typstEscape(cfg.BookAuthor))
+	}
+	return true
 }
 
 func writeBookmark(content *strings.Builder, docs []*markdown.Document, index int, doc *markdown.Document) {
@@ -271,7 +289,16 @@ func RenderDocumentsWithOptions(path string, docs []*markdown.Document, cfg styl
 			return err
 		}
 	}
-	sourceText, err := renderSource(docs, cfg)
+	tmp, err := os.MkdirTemp("", "bookset-typst-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmp)
+	renderCfg, err := stageCover(tmp, cfg)
+	if err != nil {
+		return err
+	}
+	sourceText, err := renderSource(docs, renderCfg)
 	if err != nil {
 		return err
 	}
@@ -283,11 +310,6 @@ func RenderDocumentsWithOptions(path string, docs []*markdown.Document, cfg styl
 			return err
 		}
 	}
-	tmp, err := os.MkdirTemp("", "bookset-typst-")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(tmp)
 	source := filepath.Join(tmp, "book.typ")
 	if err := os.WriteFile(source, []byte(sourceText), 0644); err != nil {
 		return err
@@ -313,6 +335,26 @@ func RenderDocumentsWithOptions(path string, docs []*markdown.Document, cfg styl
 		return fmt.Errorf("typst compile: %w: %s", err, diagnostic)
 	}
 	return nil
+}
+
+func stageCover(dir string, cfg style.Config) (style.Config, error) {
+	if cfg.CoverPath == "" {
+		return cfg, nil
+	}
+	ext := strings.ToLower(filepath.Ext(cfg.CoverPath))
+	if ext != ".jpg" && ext != ".jpeg" && ext != ".png" && ext != ".webp" && ext != ".svg" {
+		return cfg, fmt.Errorf("unsupported PDF cover format %q", ext)
+	}
+	data, err := os.ReadFile(cfg.CoverPath)
+	if err != nil {
+		return cfg, fmt.Errorf("read PDF cover image: %w", err)
+	}
+	staged := "cover" + ext
+	if err := os.WriteFile(filepath.Join(dir, staged), data, 0644); err != nil {
+		return cfg, err
+	}
+	cfg.CoverPath = staged
+	return cfg, nil
 }
 
 var typstDiagnosticLocation = regexp.MustCompile(`(?m)book\.typ:(\d+):(\d+)`)
