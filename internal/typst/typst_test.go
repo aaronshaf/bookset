@@ -83,6 +83,9 @@ func TestSourceDocumentsCreatesLinkedTOCWithFinalPageCounters(t *testing.T) {
 		`#label("bookset-toc-first-chapter")`,
 		`#link(label("bookset-toc-part-one"))[Part I: Beginnings]`,
 		`#context counter(page).at(label("bookset-toc-first-chapter")).first()`,
+		`#heading(level: 1, outlined: false, bookmarked: true)[Part I: Beginnings]`,
+		`#heading(level: 2, outlined: false, bookmarked: true)[First Chapter]`,
+		`#h(1.25em)#link(label("bookset-toc-first-chapter"))[First Chapter]`,
 	} {
 		if !strings.Contains(source, want) {
 			t.Errorf("Typst source missing %q:\n%s", want, source)

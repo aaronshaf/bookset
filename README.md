@@ -117,6 +117,28 @@ numbers resolved by Typst in the final complete-book render. EPUB uses its
 native `nav.xhtml` instead, so the synthetic PDF TOC is omitted from its spine.
 `toc = false` excludes an entry from both navigation systems. The legacy
 `[[chapters]]` format remains supported, but a manifest may not mix both forms.
+Parts group later chapters in the PDF TOC and EPUB navigation; PDF also emits
+matching viewer bookmarks for parts and chapters.
+
+For EPUB metadata, set `[book].author` and `[book].modified` (an RFC 3339
+timestamp). The latter becomes EPUB's required `dcterms:modified` value. When
+omitted, Bookset uses a stable epoch timestamp so repeated builds remain byte
+for-byte reproducible; set it for publication-ready metadata.
+
+Validate a finished EPUB with the pinned EPUBCheck release:
+
+```sh
+make epubcheck EPUB=out/book.epub
+```
+
+The command downloads the pinned archive into the local cache, verifies its
+SHA-256 digest, and runs it with Java. It is intentionally separate from
+`make check` so everyday Go development does not require Java.
+
+EPUB output includes structural navigation metadata, a language declaration,
+front/main/back reading-order semantics, and typed footnote references. These
+are useful accessibility signals, but they are not a claim of formal EPUB
+Accessibility conformance.
 
 Typed entries can also set `print_section = "front"`, `"main"`, or `"back"`.
 The default follows the kind: front matter and the PDF TOC are front, parts and

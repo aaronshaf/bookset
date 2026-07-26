@@ -56,6 +56,7 @@ func sourceDocumentsFromTemplate(docs []*markdown.Document, cfg style.Config, te
 		}
 		if chapter.BookID != "" && !chapter.ExcludeFromTOC && chapter.BookKind != "toc" {
 			fmt.Fprintf(&content, "#label(%q)\n", tocLabel(chapter.BookID))
+			writeBookmark(&content, docs, i, chapter)
 		}
 		if chapter.BookKind == "toc" {
 			writeTOC(&content, docs, chapter, cfg)
@@ -75,6 +76,24 @@ func sourceDocumentsFromTemplate(docs []*markdown.Document, cfg style.Config, te
 	return out.String()
 }
 
+func writeBookmark(content *strings.Builder, docs []*markdown.Document, index int, doc *markdown.Document) {
+	level := 1
+	if doc.BookKind == "chapter" && hasIncludedPartBefore(docs, index) {
+		level = 2
+	}
+	content.WriteString("#show heading.where(bookmarked: true): it => []\n")
+	fmt.Fprintf(content, "#heading(level: %d, outlined: false, bookmarked: true)[%s]\n", level, typstEscape(chapterTitle(doc)))
+}
+
+func hasIncludedPartBefore(docs []*markdown.Document, index int) bool {
+	for i := index - 1; i >= 0; i-- {
+		if docs[i].BookKind == "part" {
+			return !docs[i].ExcludeFromTOC
+		}
+	}
+	return false
+}
+
 func writePrintSection(content *strings.Builder, section string, cfg style.Config) {
 	if section == "front" {
 		fmt.Fprintf(content, "#bookset-folios.update(%q)\n#bookset-running-heads.update(false)\n", cfg.FrontMatterFolios)
@@ -92,10 +111,8 @@ func tocLabel(id string) string { return "bookset-toc-" + id }
 func writeTOC(content *strings.Builder, docs []*markdown.Document, toc *markdown.Document, cfg style.Config) {
 	fmt.Fprintf(content, "#align(center)[#text(font: %q, size: 18pt)[%s]]\n", cfg.HeadingFont, typstEscape(toc.Title))
 	content.WriteString("#v(1.25em)\n")
-	for _, doc := range docs {
-		if doc.ExcludeFromTOC || doc.BookKind == "toc" || doc.BookID == "" {
-			continue
-		}
+	for _, entry := range tocEntries(docs) {
+		doc := entry.doc
 		title := chapterTitle(doc)
 		if title == "" {
 			continue
@@ -107,8 +124,36 @@ func writeTOC(content *strings.Builder, docs []*markdown.Document, toc *markdown
 		if doc.PrintSection == "front" && cfg.FrontMatterFolios == "none" {
 			folio = ""
 		}
-		fmt.Fprintf(content, "#block(above: .3em, below: .3em)[#link(label(%q))[%s] #h(1fr) %s]\n", tocLabel(doc.BookID), typstEscape(title), folio)
+		indent := ""
+		if entry.depth > 0 {
+			indent = "#h(1.25em)"
+		}
+		fmt.Fprintf(content, "#block(above: .3em, below: .3em)[%s#link(label(%q))[%s] #h(1fr) %s]\n", indent, tocLabel(doc.BookID), typstEscape(title), folio)
 	}
+}
+
+type tocEntry struct {
+	doc   *markdown.Document
+	depth int
+}
+
+func tocEntries(docs []*markdown.Document) []tocEntry {
+	entries := make([]tocEntry, 0, len(docs))
+	partActive := false
+	for _, doc := range docs {
+		if doc.BookKind == "part" {
+			partActive = !doc.ExcludeFromTOC
+		}
+		if doc.ExcludeFromTOC || doc.BookKind == "toc" || doc.BookID == "" {
+			continue
+		}
+		depth := 0
+		if doc.BookKind == "chapter" && partActive {
+			depth = 1
+		}
+		entries = append(entries, tocEntry{doc: doc, depth: depth})
+	}
+	return entries
 }
 
 type templateData struct {

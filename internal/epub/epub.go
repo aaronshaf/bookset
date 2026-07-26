@@ -57,7 +57,7 @@ func WriteBook(path string, docs []*markdown.Document, cfg style.Config) error {
 		files["OEBPS/"+name] = []byte(content(doc, cfg))
 	}
 	files["OEBPS/nav.xhtml"] = []byte(bookNav(docs, contentNames))
-	files["OEBPS/package.opf"] = []byte(bookOPF(docs, contentNames))
+	files["OEBPS/package.opf"] = []byte(bookOPF(docs, contentNames, cfg))
 	keys := make([]string, 0, len(files))
 	for key := range files {
 		if key != "mimetype" {
@@ -72,7 +72,10 @@ func WriteBook(path string, docs []*markdown.Document, cfg style.Config) error {
 	defer f.Close()
 	zw := zip.NewWriter(f)
 	write := func(name string, data []byte, method uint16) error {
-		h := &zip.FileHeader{Name: name, Method: method, Modified: time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)}
+		h := &zip.FileHeader{Name: name, Method: method}
+		if name != "mimetype" {
+			h.Modified = time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC)
+		}
 		w, err := zw.CreateHeader(h)
 		if err != nil {
 			return err
@@ -204,7 +207,7 @@ func inline(in []markdown.Inline, doc semantic.Document) string {
 		case markdown.CodeSpan:
 			b.WriteString("<code>" + inline(v.Children, doc) + "</code>")
 		case markdown.Footnote:
-			fmt.Fprintf(&b, `<sup><a href="#fn-%d" id="fnref-%d">%d</a></sup>`, v.Number, v.Number, v.Number)
+			fmt.Fprintf(&b, `<sup><a epub:type="noteref" href="#fn-%d" id="fnref-%d">%d</a></sup>`, v.Number, v.Number, v.Number)
 		}
 	}
 	return b.String()
@@ -257,9 +260,9 @@ func content(doc *markdown.Document, cfg style.Config) string {
 	footnotes := ""
 	if len(doc.Footnotes) > 0 {
 		var notes strings.Builder
-		notes.WriteString(`<section class="footnotes"><h2>Notes</h2><ol>`)
+		notes.WriteString(`<section class="footnotes" epub:type="footnotes"><h2>Notes</h2><ol>`)
 		for n, note := range doc.Footnotes {
-			fmt.Fprintf(&notes, `<li id="fn-%d">%s <a href="#fnref-%d">↩</a></li>`, n, inline(note, normalized), n)
+			fmt.Fprintf(&notes, `<li id="fn-%d" epub:type="footnote">%s <a href="#fnref-%d">↩</a></li>`, n, inline(note, normalized), n)
 		}
 		notes.WriteString(`</ol></section>`)
 		footnotes = notes.String()
@@ -275,31 +278,125 @@ func content(doc *markdown.Document, cfg style.Config) string {
 		return ""
 	}
 	var out strings.Builder
-	data := struct{ Language, Title, Body, Footnotes string }{esc(cfg.Language), esc(doc.Title), renderBlocks(normalized.Blocks, normalized), footnotes}
+	data := struct{ Language, Title, BodyType, Body, Footnotes string }{esc(cfg.Language), esc(doc.Title), bodyType(doc), renderBlocks(normalized.Blocks, normalized), footnotes}
 	if err := tmpl.Execute(&out, data); err != nil {
 		return ""
 	}
 	return out.String()
 }
 
-const epubTemplate = `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" lang="{{.Language}}"><head><title>{{.Title}}</title><link rel="stylesheet" type="text/css" href="style.css"/></head><body>{{.Body}}{{.Footnotes}}</body></html>`
+const epubTemplate = `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="{{.Language}}" xml:lang="{{.Language}}"><head><title>{{.Title}}</title><link rel="stylesheet" type="text/css" href="style.css"/></head><body epub:type="{{.BodyType}}">{{.Body}}{{.Footnotes}}</body></html>`
+
+func bodyType(doc *markdown.Document) string {
+	switch doc.PrintSection {
+	case "front":
+		return "frontmatter"
+	case "back":
+		return "backmatter"
+	default:
+		return "bodymatter"
+	}
+}
 
 func bookNav(docs []*markdown.Document, names []string) string {
+	nodes := navigationNodes(docs, names)
 	var b strings.Builder
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>Contents</title></head><body><nav epub:type="toc" id="toc"><h1>Contents</h1><ol>`)
-	for i, doc := range docs {
-		if doc.ExcludeFromTOC {
-			continue
+	writeNavNodes(&b, nodes)
+	b.WriteString(`</ol></nav>`)
+	if landmarks := landmarkNodes(docs, names); len(landmarks) > 0 {
+		b.WriteString(`<nav epub:type="landmarks" hidden=""><h2>Landmarks</h2><ol>`)
+		for _, landmark := range landmarks {
+			fmt.Fprintf(&b, `<li><a epub:type="%s" href="%s">%s</a></li>`, landmark.kind, landmark.href, landmark.title)
 		}
-		fmt.Fprintf(&b, `<li><a href="%s">%s</a></li>`, names[i], esc(doc.Title))
+		b.WriteString(`</ol></nav>`)
 	}
-	b.WriteString(`</ol></nav></body></html>`)
+	b.WriteString(`</body></html>`)
 	return b.String()
 }
 
-func bookOPF(docs []*markdown.Document, names []string) string {
+type navNode struct {
+	title, href string
+	children    []navNode
+}
+
+func navigationNodes(docs []*markdown.Document, names []string) []navNode {
+	nodes := make([]navNode, 0, len(docs))
+	partIndex := -1
+	for i, doc := range docs {
+		if doc.BookKind == "part" {
+			partIndex = -1
+		}
+		if doc.ExcludeFromTOC {
+			continue
+		}
+		node := navNode{title: doc.Title, href: names[i]}
+		if doc.BookKind == "chapter" && partIndex >= 0 {
+			nodes[partIndex].children = append(nodes[partIndex].children, node)
+			continue
+		}
+		nodes = append(nodes, node)
+		if doc.BookKind == "part" {
+			partIndex = len(nodes) - 1
+		}
+	}
+	return nodes
+}
+
+func writeNavNodes(b *strings.Builder, nodes []navNode) {
+	for _, node := range nodes {
+		fmt.Fprintf(b, `<li><a href="%s">%s</a>`, node.href, esc(node.title))
+		if len(node.children) > 0 {
+			b.WriteString(`<ol>`)
+			writeNavNodes(b, node.children)
+			b.WriteString(`</ol>`)
+		}
+		b.WriteString(`</li>`)
+	}
+}
+
+type landmarkNode struct{ kind, href, title string }
+
+func landmarkNodes(docs []*markdown.Document, names []string) []landmarkNode {
+	seen := map[string]bool{}
+	landmarks := make([]landmarkNode, 0, 3)
+	for i, doc := range docs {
+		kind, title := "", ""
+		switch doc.PrintSection {
+		case "front":
+			kind, title = "frontmatter", "Front Matter"
+		case "main":
+			kind, title = "bodymatter", "Main Matter"
+		case "back":
+			kind, title = "backmatter", "Back Matter"
+		}
+		if kind != "" && !seen[kind] {
+			landmarks = append(landmarks, landmarkNode{kind: kind, href: names[i], title: title})
+			seen[kind] = true
+		}
+	}
+	return landmarks
+}
+
+func bookOPF(docs []*markdown.Document, names []string, cfg style.Config) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, `<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="book-id">%s</dc:identifier><dc:title>%s</dc:title><dc:creator>%s</dc:creator><dc:language>%s</dc:language></metadata><manifest>`, identifier(docs), esc(docs[0].Title), esc(docs[0].Author), esc(docs[0].Language))
+	title := cfg.BookTitle
+	if title == "" {
+		title = docs[0].Title
+	}
+	author := cfg.BookAuthor
+	if author == "" {
+		author = docs[0].Author
+	}
+	modified := cfg.BookModified
+	if modified == "" {
+		modified = "1970-01-01T00:00:00Z"
+	}
+	fmt.Fprintf(&b, `<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="book-id">%s</dc:identifier><dc:title>%s</dc:title>`, identifier(docs), esc(title))
+	if author != "" {
+		fmt.Fprintf(&b, `<dc:creator>%s</dc:creator>`, esc(author))
+	}
+	fmt.Fprintf(&b, `<dc:language>%s</dc:language><meta property="dcterms:modified">%s</meta><meta property="schema:accessMode">textual</meta><meta property="schema:accessibilityFeature">structuralNavigation</meta><meta property="schema:accessibilityFeature">tableOfContents</meta></metadata><manifest>`, esc(docs[0].Language), esc(modified))
 	for i, name := range names {
 		fmt.Fprintf(&b, `<item id="content-%03d" href="%s" media-type="application/xhtml+xml"/>`, i+1, name)
 	}

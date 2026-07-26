@@ -1,6 +1,7 @@
 package epub
 
 import (
+	"archive/zip"
 	"bytes"
 	"os"
 	"path/filepath"
@@ -31,6 +32,16 @@ func TestDeterministicEPUB(t *testing.T) {
 	}
 	if err := Validate(first); err != nil {
 		t.Fatal(err)
+	}
+	reader, err := zip.OpenReader(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	for _, file := range reader.File {
+		if file.Name == "mimetype" && (file.Method != zip.Store || len(file.Extra) != 0) {
+			t.Fatalf("mimetype must be stored without ZIP extra fields: method=%d extra=%d", file.Method, len(file.Extra))
+		}
 	}
 }
 
@@ -112,6 +123,54 @@ func TestPrintTOCIsExcludedFromEPUBSpine(t *testing.T) {
 	}
 	if nav := bookNav(spine, []string{"chapter.xhtml"}); strings.Contains(nav, `href="contents.xhtml"`) || !strings.Contains(nav, "Chapter One") {
 		t.Fatalf("unexpected EPUB navigation: %s", nav)
+	}
+}
+
+func TestBookNavigationNestsChaptersUnderParts(t *testing.T) {
+	part := &markdown.Document{BookKind: "part", Title: "Part I"}
+	chapter := &markdown.Document{BookKind: "chapter", Title: "Chapter One"}
+	nav := bookNav([]*markdown.Document{part, chapter}, []string{"part.xhtml", "chapter.xhtml"})
+	want := `<li><a href="part.xhtml">Part I</a><ol><li><a href="chapter.xhtml">Chapter One</a></li></ol></li>`
+	if !strings.Contains(nav, want) {
+		t.Fatalf("EPUB navigation is not nested: %s", nav)
+	}
+}
+
+func TestBookNavigationIncludesSectionLandmarks(t *testing.T) {
+	front := &markdown.Document{Title: "Preface", PrintSection: "front"}
+	chapter := &markdown.Document{Title: "Chapter One", PrintSection: "main"}
+	back := &markdown.Document{Title: "Notes", PrintSection: "back"}
+	nav := bookNav([]*markdown.Document{front, chapter, back}, []string{"front.xhtml", "chapter.xhtml", "back.xhtml"})
+	for _, want := range []string{`epub:type="landmarks"`, `epub:type="frontmatter" href="front.xhtml"`, `epub:type="bodymatter" href="chapter.xhtml"`, `epub:type="backmatter" href="back.xhtml"`} {
+		if !strings.Contains(nav, want) {
+			t.Errorf("navigation missing %q: %s", want, nav)
+		}
+	}
+}
+
+func TestBookOPFUsesBookMetadataAndModifiedTime(t *testing.T) {
+	doc := &markdown.Document{Title: "Chapter", Author: "Chapter Author", Language: "en"}
+	cfg := style.Trade("en")
+	cfg.BookTitle, cfg.BookAuthor, cfg.BookModified = "Book Title", "Book Author", "2026-07-26T12:00:00Z"
+	opf := bookOPF([]*markdown.Document{doc}, []string{"content.xhtml"}, cfg)
+	for _, want := range []string{`<dc:title>Book Title</dc:title>`, `<dc:creator>Book Author</dc:creator>`, `<meta property="dcterms:modified">2026-07-26T12:00:00Z</meta>`, `property="schema:accessMode">textual`, `property="schema:accessibilityFeature">structuralNavigation`} {
+		if !strings.Contains(opf, want) {
+			t.Errorf("OPF missing %q: %s", want, opf)
+		}
+	}
+}
+
+func TestEPUBContentUsesReadingOrderAndFootnoteSemantics(t *testing.T) {
+	doc, issues := markdown.Parse([]byte("# Preface\n\nText[^1].\n\n[^1]: Note.\n"))
+	if issues := markdown.Validate(doc, issues); len(issues) != 0 {
+		t.Fatal(markdown.FormatIssues(issues))
+	}
+	doc.PrintSection = "front"
+	rendered := content(doc, style.Trade("en"))
+	for _, want := range []string{`xmlns:epub=`, `xml:lang="en"`, `body epub:type="frontmatter"`, `epub:type="noteref"`, `epub:type="footnotes"`, `epub:type="footnote"`} {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("content missing %q: %s", want, rendered)
+		}
 	}
 }
 

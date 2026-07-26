@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/aaronshaf/bookset/internal/config"
 	"github.com/pelletier/go-toml/v2"
@@ -34,6 +35,8 @@ type Config struct {
 	FontDir                string
 	ChapterLabel           string
 	BookTitle              string
+	BookAuthor             string
+	BookModified           string
 	PageBreakAfterThenNow  bool
 	PageBreakAfterTimeline bool
 	HideTimelineHeading    bool
@@ -70,6 +73,16 @@ func ApplyProject(cfg Config, project config.Project) (Config, error) {
 	}
 	if project.Book.Title != "" {
 		cfg.BookTitle = project.Book.Title
+	}
+	if project.Book.Author != "" {
+		cfg.BookAuthor = project.Book.Author
+	}
+	if project.Book.Modified != "" {
+		modified, err := time.Parse(time.RFC3339, project.Book.Modified)
+		if err != nil {
+			return Config{}, fmt.Errorf("book.modified must be RFC 3339: %w", err)
+		}
+		cfg.BookModified = modified.UTC().Format(time.RFC3339)
 	}
 	if value := project.Typography.BodyFont; value != "" {
 		cfg.BodyFont = value
@@ -183,6 +196,16 @@ func LoadFile(path, language string) (Config, error) {
 	}
 	if value := raw.Book["title"]; value != "" {
 		cfg.BookTitle = value
+	}
+	if value := raw.Book["author"]; value != "" {
+		cfg.BookAuthor = value
+	}
+	if value := raw.Book["modified"]; value != "" {
+		modified, parseErr := time.Parse(time.RFC3339, value)
+		if parseErr != nil {
+			return Config{}, fmt.Errorf("book.modified must be RFC 3339: %w", parseErr)
+		}
+		cfg.BookModified = modified.UTC().Format(time.RFC3339)
 	}
 	if value := raw.Fonts["manifest"]; value != "" {
 		if !filepath.IsAbs(value) {

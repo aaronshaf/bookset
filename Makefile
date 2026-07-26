@@ -1,4 +1,4 @@
-.PHONY: test race vet fmt-check mod-verify staticcheck govulncheck security-check fuzz build check
+.PHONY: test race vet fmt-check mod-verify staticcheck govulncheck security-check fuzz build check epubcheck
 
 test:
 	go test ./...
@@ -32,3 +32,7 @@ build:
 
 check: fmt-check mod-verify vet test race build
 	./bin/bookset version
+
+epubcheck:
+	test -n "$(EPUB)"
+	sh scripts/epubcheck.sh "$(EPUB)"

@@ -1,5 +1,7 @@
 [book]
 title = "The Practice of Careful History"
+author = "Example Author"
+modified = "2026-07-26T00:00:00Z"
 language = "en"
 trim = "6x9"
 chapter_label = "CHAPTER"

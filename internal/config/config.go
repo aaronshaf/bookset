@@ -22,6 +22,8 @@ type Project struct {
 
 type Book struct {
 	Title            string `toml:"title"`
+	Author           string `toml:"author"`
+	Modified         string `toml:"modified"`
 	Language         string `toml:"language"`
 	Trim             string `toml:"trim"`
 	ChapterLabel     string `toml:"chapter_label"`
