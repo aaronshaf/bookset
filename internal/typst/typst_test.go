@@ -27,6 +27,29 @@ func TestSourceEscapesAndPreservesFormatting(t *testing.T) {
 	}
 }
 
+func TestSourceEscapesTypstReferencesAndLiteralAngleBrackets(t *testing.T) {
+	doc, parseIssues := markdown.Parse([]byte("# Title\n\nFind @ColtonBruc3 and \\<Moroni>.\n"))
+	if issues := markdown.Validate(doc, parseIssues); len(issues) != 0 {
+		t.Fatal(markdown.FormatIssues(issues))
+	}
+	source := Source(doc, style.Trade("en"))
+	for _, want := range []string{`\@ColtonBruc3`, `\<Moroni\>`} {
+		if !strings.Contains(source, want) {
+			t.Errorf("Typst source missing escaped literal %q:\n%s", want, source)
+		}
+	}
+}
+
+func TestThematicBreakRendersAsOrnament(t *testing.T) {
+	doc, parseIssues := markdown.Parse([]byte("# Title\n\nBefore.\n\n---\n\nAfter.\n"))
+	if issues := markdown.Validate(doc, parseIssues); len(issues) != 0 {
+		t.Fatal(markdown.FormatIssues(issues))
+	}
+	if source := Source(doc, style.Trade("en")); !strings.Contains(source, "• • •") {
+		t.Fatalf("Typst source is missing thematic-break ornament:\n%s", source)
+	}
+}
+
 func TestRunningHeadsUseBookAndChapterTitles(t *testing.T) {
 	doc, parseIssues := markdown.Parse([]byte("# Chapter Heading\n\nText.\n"))
 	if issues := markdown.Validate(doc, parseIssues); len(issues) != 0 {
@@ -219,7 +242,7 @@ func TestPDFSmokeAndDeterminismWhenTypstAvailable(t *testing.T) {
 	if _, err := exec.LookPath("typst"); err != nil {
 		t.Skip("typst not installed")
 	}
-	doc, parseIssues := markdown.Parse([]byte("# Title\n\nA *word* and **strong** text.\n"))
+	doc, parseIssues := markdown.Parse([]byte("# Title\n\nA *word* from @ColtonBruc3 and a transcription \\<Moroni>.\n\n---\n\n**Strong** text.\n"))
 	if issues := markdown.Validate(doc, parseIssues); len(issues) != 0 {
 		t.Fatal(markdown.FormatIssues(issues))
 	}

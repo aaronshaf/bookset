@@ -230,6 +230,8 @@ func renderBlocks(blocks []semantic.Block, doc semantic.Document) string {
 				b.WriteString("<li>" + inline(item.Inlines, doc) + "</li>")
 			}
 			fmt.Fprintf(&b, "</%s>", tag)
+		case semantic.ThematicBreak:
+			b.WriteString("<hr/>")
 		}
 	}
 	return b.String()

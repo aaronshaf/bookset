@@ -3,6 +3,7 @@ package markdown
 import (
 	"bytes"
 	"fmt"
+	"html"
 	"regexp"
 	"strings"
 
@@ -33,7 +34,7 @@ func Parse(source []byte) (*Document, []Issue) {
 		}
 	}
 	collectFootnotes(root, body, doc, &issues)
-	if compactText(astText(root, body)) != compactText(doc.PlainText()) {
+	if integrityText(astText(root, body)) != integrityText(doc.PlainText()) {
 		issues = append(issues, Issue{"source text was dropped or duplicated while building the document model"})
 	}
 	if doc.Title == "" {
@@ -74,6 +75,13 @@ func Parse(source []byte) (*Document, []Issue) {
 
 func compactText(value string) string { return strings.Join(strings.Fields(value), "") }
 
+func integrityText(value string) string {
+	value = html.UnescapeString(value)
+	value = strings.ReplaceAll(value, `\<`, "<")
+	value = strings.ReplaceAll(value, `\>`, ">")
+	return compactText(value)
+}
+
 func astText(node ast.Node, source []byte) string {
 	var out strings.Builder
 	_ = ast.Walk(node, func(child ast.Node, entering bool) (ast.WalkStatus, error) {
@@ -88,6 +96,8 @@ func astText(node ast.Node, source []byte) string {
 			}
 		case *ast.String:
 			out.Write(n.Value)
+		case *ast.RawHTML:
+			out.Write(n.Segments.Value(source))
 		case *mdast.FootnoteList:
 			return ast.WalkSkipChildren, nil
 		case *mdast.FootnoteLink, *mdast.FootnoteBacklink:
@@ -142,6 +152,8 @@ func parseBlock(node ast.Node, source []byte, doc *Document, issues *[]Issue) (B
 			*issues = append(*issues, Issue{fmt.Sprintf("unsupported list item construct: %s", child.Kind())})
 		}
 		return Block{Kind: ListItem, Inlines: inlines}, true
+	case *ast.ThematicBreak:
+		return Block{Kind: ThematicBreak}, true
 	case *mdast.FootnoteList:
 		return Block{}, true
 	default:
@@ -169,7 +181,7 @@ func parseInlines(node ast.Node, source []byte, doc *Document, issues *[]Issue) 
 	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
 		switch n := child.(type) {
 		case *ast.Text:
-			out = append(out, Inline{Kind: Text, Text: string(n.Segment.Value(source))})
+			out = appendText(out, string(n.Segment.Value(source)))
 			if n.SoftLineBreak() {
 				out = append(out, Inline{Kind: Text, Text: " "})
 			}
@@ -186,12 +198,25 @@ func parseInlines(node ast.Node, source []byte, doc *Document, issues *[]Issue) 
 		case *mdast.FootnoteBacklink:
 			// Backlinks are generated metadata, not manuscript text.
 		case *ast.String:
-			out = append(out, Inline{Kind: Text, Text: string(n.Value)})
+			out = appendText(out, string(n.Value))
+		case *ast.RawHTML:
+			raw := string(n.Segments.Value(source))
+			// Goldmark recognizes angle-bracket transcription as RawHTML even
+			// when the opening bracket was backslash-escaped. Preserve it as
+			// literal manuscript text, never executable markup.
+			if len(out) > 0 && out[len(out)-1].Kind == Text && strings.HasSuffix(out[len(out)-1].Text, "\\") && strings.HasPrefix(raw, "<") {
+				out[len(out)-1].Text = strings.TrimSuffix(out[len(out)-1].Text, "\\")
+			}
+			out = appendText(out, raw)
 		default:
 			*issues = append(*issues, Issue{fmt.Sprintf("unsupported inline construct: %s", child.Kind())})
 		}
 	}
 	return out
+}
+
+func appendText(inlines []Inline, value string) []Inline {
+	return append(inlines, Inline{Kind: Text, Text: html.UnescapeString(value)})
 }
 
 // collectFootnotes extracts definitions after parsing because goldmark places

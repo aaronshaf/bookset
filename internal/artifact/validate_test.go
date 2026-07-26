@@ -143,6 +143,17 @@ func TestMissingFragmentNormalizesTrackedHeadingText(t *testing.T) {
 	}
 }
 
+func TestMissingFragmentAllowsFootnotesBetweenPageText(t *testing.T) {
+	doc, parseIssues := markdown.Parse([]byte("# Title\n\nThat shift has loosened Utah's reputation for closing ranks.\n"))
+	if issues := markdown.Validate(doc, parseIssues); len(issues) != 0 {
+		t.Fatal(markdown.FormatIssues(issues))
+	}
+	extracted := "Title\n\nThat shift has loosened U-\n\n1 A footnote extracted before the next page.\n\ntah's reputation for closing ranks.\n"
+	if missing := missingFragment(extracted, []*markdown.Document{doc}); missing != "" {
+		t.Fatalf("page-boundary footnote caused a false missing-text issue: %q", missing)
+	}
+}
+
 func TestExpectedPDFFontFamiliesTrackRenderedRoles(t *testing.T) {
 	doc, parseIssues := markdown.Parse([]byte("# Title\n\nBody text.\n\n**THEN:** Context.\n"))
 	if issues := markdown.Validate(doc, parseIssues); len(issues) != 0 {

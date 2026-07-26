@@ -23,11 +23,12 @@ type Block struct {
 type BlockKind string
 
 const (
-	Heading   BlockKind = "heading"
-	Paragraph BlockKind = "paragraph"
-	Quote     BlockKind = "quote"
-	List      BlockKind = "list"
-	ListItem  BlockKind = "list-item"
+	Heading       BlockKind = "heading"
+	Paragraph     BlockKind = "paragraph"
+	Quote         BlockKind = "quote"
+	List          BlockKind = "list"
+	ListItem      BlockKind = "list-item"
+	ThematicBreak BlockKind = "thematic-break"
 )
 
 type Inline struct {

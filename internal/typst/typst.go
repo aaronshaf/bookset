@@ -404,6 +404,8 @@ func writeBlock(b *strings.Builder, block semantic.Block, doc semantic.Document,
 			}
 			fmt.Fprintf(b, "%s %s\n", marker, inline(child.Inlines, doc))
 		}
+	case semantic.ThematicBreak:
+		b.WriteString("#align(center)[#text(size: 9pt)[• • •]]\n")
 	}
 }
 
@@ -436,7 +438,7 @@ func inline(inlines []markdown.Inline, doc semantic.Document) string {
 
 func typstEscape(value string) string {
 	value = strings.ReplaceAll(value, "\\", "\\\\")
-	for _, char := range []string{"#", "[", "]", "*", "_", "$"} {
+	for _, char := range []string{"#", "[", "]", "{", "}", "*", "_", "$", "@", "<", ">"} {
 		value = strings.ReplaceAll(value, char, "\\"+char)
 	}
 	return value

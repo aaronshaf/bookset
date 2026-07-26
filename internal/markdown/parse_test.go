@@ -48,3 +48,24 @@ func TestFootnoteValidation(t *testing.T) {
 		t.Fatalf("issues=%q", got)
 	}
 }
+
+func TestLiteralAngleBracketsAndEntitiesPreserveText(t *testing.T) {
+	source := []byte("# Title\n\nA transcription reads \\<Moroni> and &lt;Nephi&gt;.\n")
+	doc, parseIssues := Parse(source)
+	if issues := Validate(doc, parseIssues); len(issues) != 0 {
+		t.Fatal(FormatIssues(issues))
+	}
+	if got := doc.PlainText(); !strings.Contains(got, "<Moroni>") || !strings.Contains(got, "<Nephi>") {
+		t.Fatalf("literal angle-bracket text was lost or not decoded: %q", got)
+	}
+}
+
+func TestThematicBreakIsSupported(t *testing.T) {
+	doc, parseIssues := Parse([]byte("# Title\n\nBefore.\n\n---\n\nAfter.\n"))
+	if issues := Validate(doc, parseIssues); len(issues) != 0 {
+		t.Fatal(FormatIssues(issues))
+	}
+	if len(doc.Blocks) != 4 || doc.Blocks[2].Kind != ThematicBreak {
+		t.Fatalf("thematic break was not preserved: %#v", doc.Blocks)
+	}
+}

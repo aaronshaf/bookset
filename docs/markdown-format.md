@@ -24,9 +24,13 @@ single-line `key: value` pairs; it does not implement full YAML.
 
 - headings;
 - paragraphs and block quotes;
+- thematic breaks (`---`, rendered as a centered ornament in PDF and a rule in EPUB);
 - ordered and unordered lists with inline list-item content;
 - emphasis, strong emphasis, nested emphasis, and inline code;
-- footnote references and definitions.
+- footnote references and definitions;
+- literal angle-bracket transcription such as `\<Moroni>` and character
+  entities such as `&lt;Moroni&gt;`. Raw HTML is treated as literal text rather
+  than executable markup.
 
 Unsupported block or inline constructs are validation errors. This is
 intentional: a publishing workflow should reject content it cannot preserve

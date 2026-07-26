@@ -70,6 +70,19 @@ func TestSemanticStructuresReachEPUB(t *testing.T) {
 	}
 }
 
+func TestThematicBreakAndLiteralAngleBracketsReachEPUB(t *testing.T) {
+	doc, parseIssues := markdown.Parse([]byte("# Title\n\nA \\<Moroni>.\n\n---\n"))
+	if issues := markdown.Validate(doc, parseIssues); len(issues) != 0 {
+		t.Fatal(markdown.FormatIssues(issues))
+	}
+	content := content(doc, style.Trade("en"))
+	for _, want := range []string{"&lt;Moroni&gt;", "<hr/>"} {
+		if !strings.Contains(content, want) {
+			t.Errorf("EPUB content missing %q: %s", want, content)
+		}
+	}
+}
+
 func TestStylesheetReceivesStyleTypography(t *testing.T) {
 	cfg := style.Trade("en")
 	cfg.BodyFont, cfg.HeadingFont, cfg.UtilityFont = "Test Body", "Test Heading", "Test Utility"

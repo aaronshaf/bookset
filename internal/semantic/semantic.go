@@ -17,6 +17,7 @@ const (
 	Paragraph     Kind = "paragraph"
 	Quote         Kind = "quote"
 	List          Kind = "list"
+	ThematicBreak Kind = "thematic-break"
 	ChapterOpener Kind = "chapter-opener"
 	ThenNow       Kind = "then-now"
 	Section       Kind = "section"

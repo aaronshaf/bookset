@@ -157,7 +157,7 @@ func missingFragment(output string, docs []*markdown.Document) string {
 		return "no manuscript text"
 	}
 	for _, fragment := range fragments {
-		if normalized := compact(fragment); normalized != "" && !containsTokens(outputTokens, tokens(fragment)) && !strings.Contains(compactOutput, normalized) {
+		if normalized := compact(fragment); normalized != "" && !containsOrderedTokens(outputTokens, tokens(fragment)) && !strings.Contains(compactOutput, normalized) {
 			return normalized
 		}
 	}
@@ -169,22 +169,60 @@ func tokens(value string) []string {
 	return matches
 }
 
-func containsTokens(haystack, needle []string) bool {
+// containsOrderedTokens tolerates text that PDF extraction inserts between
+// manuscript words (most often a footnote block at a page break), while still
+// requiring every source word in its original order.
+func containsOrderedTokens(haystack, needle []string) bool {
 	if len(needle) == 0 {
 		return true
 	}
-	counts := map[string]int{}
-	for _, token := range haystack {
-		counts[token]++
-	}
-	needed := map[string]int{}
-	for _, token := range needle {
-		needed[token]++
-		if needed[token] > counts[token] {
+	position := 0
+	for _, wanted := range needle {
+		next, ok := findOrderedToken(haystack, wanted, position)
+		if !ok {
 			return false
 		}
+		position = next
 	}
 	return true
+}
+
+func findOrderedToken(haystack []string, wanted string, start int) (int, bool) {
+	for i := start; i < len(haystack); i++ {
+		if haystack[i] == wanted {
+			return i + 1, true
+		}
+	}
+	// A word can be hyphenated at a page boundary while pdftotext places a
+	// footnote block between its fragments. Reassemble only a missing source
+	// word from ordered token prefixes, skipping the inserted footnote tokens.
+	for i := start; i < len(haystack); i++ {
+		part := haystack[i]
+		if len(part) == 0 || len(part) >= len(wanted) || !strings.HasPrefix(wanted, part) {
+			continue
+		}
+		remaining := strings.TrimPrefix(wanted, part)
+		position := i + 1
+		for remaining != "" {
+			found := -1
+			for j := position; j < len(haystack); j++ {
+				candidate := haystack[j]
+				if candidate != "" && len(candidate) <= len(remaining) && strings.HasPrefix(remaining, candidate) {
+					found = j
+					remaining = strings.TrimPrefix(remaining, candidate)
+					position = j + 1
+					break
+				}
+			}
+			if found < 0 {
+				break
+			}
+		}
+		if remaining == "" {
+			return position, true
+		}
+	}
+	return 0, false
 }
 
 func compact(value string) string {
