@@ -36,6 +36,8 @@ func main() {
 		build(os.Args[2:])
 	case "plan":
 		plan(os.Args[2:])
+	case "proof":
+		proof(os.Args[2:])
 	case "validate":
 		validate(os.Args[2:])
 	case "inspect":
@@ -90,6 +92,47 @@ func plan(args []string) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "bookset:", err)
 		os.Exit(1)
+	}
+}
+
+func proof(args []string) {
+	flags := flag.NewFlagSet("proof", flag.ExitOnError)
+	configPath := flags.String("config", "", "book TOML configuration")
+	output := flags.String("output", "", "PDF output path")
+	jsonOutput := flags.Bool("json", false, "write a machine-readable proof report")
+	flags.Parse(args)
+	if *configPath == "" || *output == "" || flags.NArg() != 0 {
+		fmt.Fprintln(os.Stderr, "usage: bookset proof --config bookset.toml --output book.pdf [--json]")
+		os.Exit(2)
+	}
+	project, err := config.Load(*configPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "bookset:", err)
+		os.Exit(2)
+	}
+	manuscript, err := book.Load(project)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "bookset:", err)
+		os.Exit(1)
+	}
+	entries, err := typst.ProofDocuments(*output, manuscript.Documents, manuscript.Style)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "bookset:", err)
+		os.Exit(1)
+	}
+	if *jsonOutput {
+		data, marshalErr := json.MarshalIndent(struct {
+			Entries []typst.ProofEntry `json:"entries"`
+		}{entries}, "", "  ")
+		if marshalErr != nil {
+			fmt.Fprintln(os.Stderr, "bookset:", marshalErr)
+			os.Exit(1)
+		}
+		fmt.Println(string(data))
+		return
+	}
+	for _, entry := range entries {
+		fmt.Printf("%s kind=%s section=%s pages=%d-%d folio=%d title=%q\n", entry.ID, entry.Kind, entry.Section, entry.StartPage, entry.EndPage, entry.Folio, entry.Title)
 	}
 }
 
@@ -482,6 +525,7 @@ func usage() {
 	fmt.Println("  bookset render --format pdf|epub --style trade|classic-trade|timeline-trade --output FILE INPUT.md")
 	fmt.Println("  bookset build --config bookset.toml --format pdf|epub [--typst-source FILE] --output FILE")
 	fmt.Println("  bookset plan --config bookset.toml [--json]")
+	fmt.Println("  bookset proof --config bookset.toml --output FILE [--json]")
 	fmt.Println("  bookset validate [--config bookset.toml] [--artifact FILE] INPUT.md")
 	fmt.Println("  bookset inspect [--json] INPUT.md")
 	fmt.Println("  bookset inspect --artifact FILE [--config bookset.toml | INPUT.md] [--json] [--strict]")

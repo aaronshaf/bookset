@@ -158,6 +158,14 @@ bookset plan --config bookset.toml
 bookset plan --config bookset.toml --json
 ```
 
+Render a PDF and receive the final physical page span and displayed folio for
+each manifest entry with:
+
+```sh
+bookset proof --config bookset.toml --output out/book.pdf
+bookset proof --config bookset.toml --output out/book.pdf --json
+```
+
 Typed entries can also set `print_section = "front"`, `"main"`, or `"back"`.
 The default follows the kind: front matter and the PDF TOC are front, parts and
 chapters are main, and back matter is back. Front matter uses lowercase Roman

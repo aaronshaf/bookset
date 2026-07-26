@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -59,6 +60,7 @@ func sourceDocumentsFromTemplate(docs []*markdown.Document, cfg style.Config, te
 			fmt.Fprintf(&content, "#label(%q)\n", tocLabel(chapter.BookID))
 			writeBookmark(&content, docs, i, chapter)
 		}
+		writeProofMarker(&content, chapter)
 		if chapter.BookKind == "toc" {
 			writeTOC(&content, docs, chapter, cfg)
 			continue
@@ -66,6 +68,7 @@ func sourceDocumentsFromTemplate(docs []*markdown.Document, cfg style.Config, te
 		normalized := semantic.Normalize(chapter, cfg)
 		writeBlocks(&content, normalized.Blocks, normalized, cfg)
 	}
+	content.WriteString(`#context [#metadata((page: here().page())) <bookset-proof-end>]` + "\n")
 	tmpl, err := template.New("chapter").Parse(templateText)
 	if err != nil {
 		return setup + "\n" + content.String()
@@ -75,6 +78,10 @@ func sourceDocumentsFromTemplate(docs []*markdown.Document, cfg style.Config, te
 		return setup + "\n" + content.String()
 	}
 	return out.String()
+}
+
+func writeProofMarker(content *strings.Builder, doc *markdown.Document) {
+	fmt.Fprintf(content, "#context [#metadata((id: %q, kind: %q, section: %q, title: %q, page: here().page(), folio: counter(page).get().first())) <bookset-entry>]\n", doc.BookID, doc.BookKind, doc.PrintSection, doc.Title)
 }
 
 func writeBookPreamble(content *strings.Builder, cfg style.Config) bool {
@@ -277,45 +284,65 @@ func RenderDocuments(path string, docs []*markdown.Document, cfg style.Config) e
 }
 
 func RenderDocumentsWithOptions(path string, docs []*markdown.Document, cfg style.Config, options RenderOptions) error {
+	_, err := renderDocuments(path, docs, cfg, options, false)
+	return err
+}
+
+type ProofEntry struct {
+	ID        string `json:"id"`
+	Kind      string `json:"kind"`
+	Section   string `json:"section"`
+	Title     string `json:"title"`
+	StartPage int    `json:"start_page"`
+	EndPage   int    `json:"end_page"`
+	Folio     int    `json:"folio"`
+}
+
+// ProofDocuments renders a PDF and returns final-layout physical page spans.
+func ProofDocuments(path string, docs []*markdown.Document, cfg style.Config) ([]ProofEntry, error) {
+	return renderDocuments(path, docs, cfg, RenderOptions{}, true)
+}
+
+func renderDocuments(path string, docs []*markdown.Document, cfg style.Config, options RenderOptions, proof bool) ([]ProofEntry, error) {
 	typst, err := exec.LookPath("typst")
 	if err != nil {
-		return fmt.Errorf("typst is required for PDF rendering: %w", err)
+		return nil, fmt.Errorf("typst is required for PDF rendering: %w", err)
 	}
 	if err := validateConfiguredFonts(typst, cfg); err != nil {
-		return err
+		return nil, err
 	}
 	if cfg.FontManifest != "" {
 		if err := validateFonts(typst, cfg); err != nil {
-			return err
+			return nil, err
 		}
 	}
 	tmp, err := os.MkdirTemp("", "bookset-typst-")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer os.RemoveAll(tmp)
 	renderCfg, err := stageCover(tmp, cfg)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	sourceText, err := renderSource(docs, renderCfg)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if options.SourcePath != "" {
 		if err := os.MkdirAll(filepath.Dir(options.SourcePath), 0755); err != nil {
-			return err
+			return nil, err
 		}
 		if err := os.WriteFile(options.SourcePath, []byte(sourceText), 0644); err != nil {
-			return err
+			return nil, err
 		}
 	}
 	source := filepath.Join(tmp, "book.typ")
 	if err := os.WriteFile(source, []byte(sourceText), 0644); err != nil {
-		return err
+		return nil, err
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return err
+		return nil, err
 	}
 	args := []string{"compile"}
 	if cfg.FontDir != "" {
@@ -330,11 +357,74 @@ func RenderDocumentsWithOptions(path string, docs []*markdown.Document, cfg styl
 			diagnostic += "\nbookset source: " + sourceLocation
 		}
 		if options.SourcePath != "" {
-			return fmt.Errorf("typst compile (source: %s): %w: %s", options.SourcePath, err, diagnostic)
+			return nil, fmt.Errorf("typst compile (source: %s): %w: %s", options.SourcePath, err, diagnostic)
 		}
-		return fmt.Errorf("typst compile: %w: %s", err, diagnostic)
+		return nil, fmt.Errorf("typst compile: %w: %s", err, diagnostic)
 	}
-	return nil
+	if !proof {
+		return nil, nil
+	}
+	return queryProof(typst, tmp, source, renderCfg)
+}
+
+func queryProof(typstPath, root, source string, cfg style.Config) ([]ProofEntry, error) {
+	args := []string{"eval"}
+	if cfg.FontDir != "" {
+		args = append(args, "--font-path", cfg.FontDir)
+	}
+	args = append(args, "--root", root, "--in", source, `query(<bookset-entry>)`)
+	cmd := exec.Command(typstPath, args...)
+	cmd.Env = append(os.Environ(), "SOURCE_DATE_EPOCH=0", "LANG="+cfg.Language+"_US.UTF-8", "LC_ALL="+cfg.Language+"_US.UTF-8")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("query PDF proof metadata: %w", err)
+	}
+	var records []struct {
+		Value struct {
+			ID      string `json:"id"`
+			Kind    string `json:"kind"`
+			Section string `json:"section"`
+			Title   string `json:"title"`
+			Page    int    `json:"page"`
+			Folio   int    `json:"folio"`
+		} `json:"value"`
+	}
+	if err := json.Unmarshal(output, &records); err != nil {
+		return nil, fmt.Errorf("parse PDF proof metadata: %w", err)
+	}
+	entries := make([]ProofEntry, 0, len(records))
+	for _, record := range records {
+		entries = append(entries, ProofEntry{ID: record.Value.ID, Kind: record.Value.Kind, Section: record.Value.Section, Title: record.Value.Title, StartPage: record.Value.Page, Folio: record.Value.Folio})
+	}
+	if len(entries) == 0 {
+		return nil, fmt.Errorf("PDF proof metadata contains no manifest entries")
+	}
+	endArgs := []string{"eval"}
+	if cfg.FontDir != "" {
+		endArgs = append(endArgs, "--font-path", cfg.FontDir)
+	}
+	endArgs = append(endArgs, "--root", root, "--in", source, `query(<bookset-proof-end>)`)
+	endCmd := exec.Command(typstPath, endArgs...)
+	endCmd.Env = cmd.Env
+	endOutput, err := endCmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("query PDF proof end: %w", err)
+	}
+	var ends []struct {
+		Value struct {
+			Page int `json:"page"`
+		} `json:"value"`
+	}
+	if err := json.Unmarshal(endOutput, &ends); err != nil || len(ends) != 1 {
+		return nil, fmt.Errorf("parse PDF proof end metadata")
+	}
+	for i := range entries {
+		entries[i].EndPage = ends[0].Value.Page
+		if i+1 < len(entries) {
+			entries[i].EndPage = entries[i+1].StartPage - 1
+		}
+	}
+	return entries, nil
 }
 
 func stageCover(dir string, cfg style.Config) (style.Config, error) {

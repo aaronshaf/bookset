@@ -163,4 +163,12 @@ func TestTypedBookEPUBIncludesPartAndNavigation(t *testing.T) {
 			t.Errorf("PDF contents build missing %q: %s", want, text)
 		}
 	}
+	proofPath := filepath.Join(t.TempDir(), "proof.pdf")
+	proof, err := typst.ProofDocuments(proofPath, manuscript.Documents, manuscript.Style)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(proof) != 4 || proof[0].ID != "contents" || proof[0].StartPage != 3 || proof[1].Folio != 1 || proof[2].EndPage < proof[2].StartPage {
+		t.Fatalf("unexpected final-layout proof: %#v", proof)
+	}
 }
