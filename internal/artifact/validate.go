@@ -155,7 +155,9 @@ func missingFragment(output string, docs []*markdown.Document) string {
 		fragments = append(fragments, textFragments(doc.Blocks)...)
 	}
 	if len(fragments) == 0 {
-		return "no manuscript text"
+		// Synthetic book-sequence entries such as a part opener intentionally
+		// have no Markdown body to compare against.
+		return ""
 	}
 	for _, fragment := range fragments {
 		for _, chunk := range validationChunks(fragment, 6) {

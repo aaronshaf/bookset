@@ -85,3 +85,16 @@ func TestNestedListsPreserveStructureAndText(t *testing.T) {
 		}
 	}
 }
+
+func TestBlocksRetainOriginalSourceLinesAfterFrontMatter(t *testing.T) {
+	doc, parseIssues := Parse([]byte("---\ntitle: Example\n---\n\n# Heading\n\nParagraph.\n"))
+	if issues := Validate(doc, parseIssues); len(issues) != 0 {
+		t.Fatal(FormatIssues(issues))
+	}
+	if got := doc.Blocks[0].Source.Line; got != 5 {
+		t.Fatalf("heading source line=%d, want 5", got)
+	}
+	if got := doc.Blocks[1].Source.Line; got != 7 {
+		t.Fatalf("paragraph source line=%d, want 7", got)
+	}
+}

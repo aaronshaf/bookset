@@ -3,15 +3,28 @@ package markdown
 // Document is the small, renderer-independent manuscript model used by all
 // bookset backends.
 type Document struct {
-	Title        string
-	Author       string
-	Language     string
-	ChapterLabel string
-	Blocks       []Block
-	Footnotes    map[int][]Inline
+	SourcePath     string
+	BookID         string
+	BookKind       string
+	ExcludeFromTOC bool
+	Title          string
+	Author         string
+	Language       string
+	ChapterLabel   string
+	Blocks         []Block
+	Footnotes      map[int][]Inline
+	sourceOffset   int
+}
+
+// SourceLocation identifies the source line that produced a model node.
+// Column is reserved for a future finer-grained inline diagnostic map.
+type SourceLocation struct {
+	Line   int
+	Column int
 }
 
 type Block struct {
+	Source   SourceLocation
 	Kind     BlockKind
 	Level    int
 	Inlines  []Inline

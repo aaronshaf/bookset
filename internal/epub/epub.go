@@ -25,6 +25,7 @@ func Write(path string, doc *markdown.Document, cfg style.Config) error {
 }
 
 func WriteBook(path string, docs []*markdown.Document, cfg style.Config) error {
+	docs = spineDocuments(docs)
 	if len(docs) == 0 {
 		return fmt.Errorf("cannot write an EPUB with no chapters")
 	}
@@ -88,6 +89,19 @@ func WriteBook(path string, docs []*markdown.Document, cfg style.Config) error {
 		}
 	}
 	return zw.Close()
+}
+
+// spineDocuments omits the print-only TOC document. EPUB navigation is
+// generated separately in nav.xhtml, so including it in the spine would
+// create a duplicate, non-native contents page.
+func spineDocuments(docs []*markdown.Document) []*markdown.Document {
+	spine := make([]*markdown.Document, 0, len(docs))
+	for _, doc := range docs {
+		if doc.BookKind != "toc" {
+			spine = append(spine, doc)
+		}
+	}
+	return spine
 }
 
 func Validate(path string) error {
@@ -206,6 +220,8 @@ func renderBlocks(blocks []semantic.Block, doc semantic.Document) string {
 				b.WriteString(`<p class="chapter-label">` + esc(v.Label) + `</p>`)
 			}
 			b.WriteString("<h1>" + inline(v.Inlines, doc) + "</h1>")
+		case semantic.PartOpener:
+			b.WriteString(`<section class="part"><h1>` + inline(v.Inlines, doc) + `</h1></section>`)
 		case semantic.Section:
 			fmt.Fprintf(&b, "<h2>%d. %s</h2>", v.Number, inline(v.Inlines, doc))
 		case semantic.ThenNow:
@@ -272,6 +288,9 @@ func bookNav(docs []*markdown.Document, names []string) string {
 	var b strings.Builder
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>Contents</title></head><body><nav epub:type="toc" id="toc"><h1>Contents</h1><ol>`)
 	for i, doc := range docs {
+		if doc.ExcludeFromTOC {
+			continue
+		}
 		fmt.Fprintf(&b, `<li><a href="%s">%s</a></li>`, names[i], esc(doc.Title))
 	}
 	b.WriteString(`</ol></nav></body></html>`)

@@ -16,6 +16,7 @@ type Project struct {
 	Fonts               Fonts      `toml:"fonts"`
 	BaseDir             string     `toml:"-"`
 	Chapters            []Chapter  `toml:"chapters"`
+	Contents            []Content  `toml:"contents"`
 	TemplatesConfigured bool       `toml:"-"`
 }
 
@@ -61,6 +62,18 @@ type Chapter struct {
 	ChapterLabel string `toml:"chapter_label"`
 }
 
+// Content is an ordered book-sequence entry. It supersedes Chapter for new
+// manifests while Chapter remains supported for compatibility.
+type Content struct {
+	ID           string `toml:"id"`
+	Kind         string `toml:"kind"`
+	Source       string `toml:"source"`
+	Style        string `toml:"style"`
+	Title        string `toml:"title"`
+	ChapterLabel string `toml:"chapter_label"`
+	TOC          *bool  `toml:"toc"`
+}
+
 func Load(path string) (Project, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -81,13 +94,27 @@ func Load(path string) (Project, error) {
 			project.Templates.Dir = filepath.Clean(filepath.Join(project.BaseDir, project.Templates.Dir))
 		}
 		for i := range project.Chapters {
-			if !filepath.IsAbs(project.Chapters[i].Source) {
-				project.Chapters[i].Source = filepath.Join(project.BaseDir, project.Chapters[i].Source)
-			}
-			if project.Chapters[i].Style != "" && !filepath.IsAbs(project.Chapters[i].Style) && (filepath.Ext(project.Chapters[i].Style) == ".toml" || filepath.Dir(project.Chapters[i].Style) != ".") {
-				project.Chapters[i].Style = filepath.Join(project.BaseDir, project.Chapters[i].Style)
-			}
+			project.Chapters[i].Source = resolvePath(project.BaseDir, project.Chapters[i].Source)
+			project.Chapters[i].Style = resolveStylePath(project.BaseDir, project.Chapters[i].Style)
+		}
+		for i := range project.Contents {
+			project.Contents[i].Source = resolvePath(project.BaseDir, project.Contents[i].Source)
+			project.Contents[i].Style = resolveStylePath(project.BaseDir, project.Contents[i].Style)
 		}
 	}
 	return project, err
+}
+
+func resolvePath(baseDir, value string) string {
+	if value == "" || filepath.IsAbs(value) {
+		return value
+	}
+	return filepath.Join(baseDir, value)
+}
+
+func resolveStylePath(baseDir, value string) string {
+	if value == "" || filepath.IsAbs(value) || (filepath.Ext(value) != ".toml" && filepath.Dir(value) == ".") {
+		return value
+	}
+	return filepath.Join(baseDir, value)
 }

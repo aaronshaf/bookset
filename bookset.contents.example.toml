@@ -1,0 +1,32 @@
+[book]
+title = "The Practice of Careful History"
+language = "en"
+trim = "6x9"
+chapter_label = "CHAPTER"
+chapter_numbering = true
+
+[templates]
+dir = "templates/timeline-trade"
+
+[[contents]]
+id = "contents"
+kind = "toc"
+style = "timeline-trade"
+
+[[contents]]
+id = "part-one"
+kind = "part"
+title = "Part I: Beginnings"
+style = "timeline-trade"
+
+[[contents]]
+id = "careful-history"
+kind = "chapter"
+source = "testdata/semantic-chapter.md"
+style = "timeline-trade"
+
+[[contents]]
+id = "practical-method"
+kind = "chapter"
+source = "testdata/semantic-chapter-2.md"
+style = "timeline-trade"

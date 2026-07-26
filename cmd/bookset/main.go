@@ -64,7 +64,7 @@ func doctorCommand(args []string) {
 			fmt.Fprintln(os.Stderr, "bookset:", configErr)
 			os.Exit(2)
 		}
-		if len(project.Chapters) > 0 {
+		if len(project.Chapters) > 0 || len(project.Contents) > 0 {
 			manuscript, loadErr := book.Load(project)
 			if loadErr != nil {
 				fmt.Fprintln(os.Stderr, "bookset:", loadErr)
@@ -212,15 +212,15 @@ func build(args []string) {
 			fmt.Fprintln(os.Stderr, "bookset: --typst-source requires --format pdf")
 			os.Exit(2)
 		}
-		err = epub.WriteBook(*output, manuscript.Chapters, manuscript.Style)
+		err = epub.WriteBook(*output, manuscript.Documents, manuscript.Style)
 		if err == nil {
 			err = epub.Validate(*output)
 		}
 	} else {
-		err = typst.RenderDocumentsWithOptions(*output, manuscript.Chapters, manuscript.Style, typst.RenderOptions{SourcePath: *typstSource})
+		err = typst.RenderDocumentsWithOptions(*output, manuscript.Documents, manuscript.Style, typst.RenderOptions{SourcePath: *typstSource})
 	}
 	if err == nil {
-		if issues := artifact.ValidateDocumentsWithStyle(*output, manuscript.Chapters, manuscript.Style); len(issues) > 0 {
+		if issues := artifact.ValidateDocumentsWithStyle(*output, manuscript.Documents, manuscript.Style); len(issues) > 0 {
 			err = fmt.Errorf("artifact validation failed: %s", strings.Join(artifact.SortedMessages(issues), "; "))
 		}
 	}
@@ -262,7 +262,7 @@ func validate(args []string) {
 			fmt.Println("valid:", *configPath)
 			return
 		}
-		if issues := artifact.ValidateDocumentsWithStyle(*artifactPath, manuscript.Chapters, manuscript.Style); len(issues) > 0 {
+		if issues := artifact.ValidateDocumentsWithStyle(*artifactPath, manuscript.Documents, manuscript.Style); len(issues) > 0 {
 			messages := make([]markdown.Issue, 0, len(issues))
 			for _, issue := range issues {
 				messages = append(messages, markdown.Issue{Message: issue.Error()})
@@ -320,16 +320,23 @@ func inspect(args []string) {
 				fmt.Fprintln(os.Stderr, "bookset:", loadErr)
 				os.Exit(1)
 			}
-			report, err = artifact.InspectArtifactAgainstWithStyle(*artifactPath, manuscript.Chapters, manuscript.Style)
-			paths := make([]string, 0, len(project.Chapters))
-			titles := make([]string, 0, len(manuscript.Chapters))
+			report, err = artifact.InspectArtifactAgainstWithStyle(*artifactPath, manuscript.Documents, manuscript.Style)
+			paths := make([]string, 0, len(manuscript.Documents))
+			titles := make([]string, 0, len(manuscript.Documents))
 			footnotes := 0
-			for i, chapter := range project.Chapters {
-				paths = append(paths, filepath.Clean(chapter.Source))
-				titles = append(titles, manuscript.Chapters[i].Title)
-				footnotes += len(manuscript.Chapters[i].Footnotes)
+			for _, document := range manuscript.Documents {
+				if document.SourcePath != "" {
+					paths = append(paths, filepath.Clean(document.SourcePath))
+				}
+				titles = append(titles, document.Title)
+				footnotes += len(document.Footnotes)
 			}
-			report.Source = &artifact.SourceInfo{Path: filepath.Clean(*configPath), Title: manuscript.Chapters[0].Title, Author: manuscript.Chapters[0].Author, Language: manuscript.Chapters[0].Language, Chapters: len(manuscript.Chapters), Footnotes: footnotes, ChapterPaths: paths, ChapterTitles: titles}
+			first := manuscript.Documents[0]
+			title := project.Book.Title
+			if title == "" {
+				title = first.Title
+			}
+			report.Source = &artifact.SourceInfo{Path: filepath.Clean(*configPath), Title: title, Author: first.Author, Language: first.Language, Chapters: len(manuscript.Chapters), Footnotes: footnotes, ChapterPaths: paths, ChapterTitles: titles}
 		} else if flags.NArg() == 1 {
 			doc, issues := load(flags.Arg(0))
 			if len(issues) > 0 {
@@ -409,6 +416,7 @@ func load(path string) (*markdown.Document, []markdown.Issue) {
 		os.Exit(1)
 	}
 	doc, parseIssues := markdown.Parse(source)
+	doc.SourcePath = filepath.Clean(path)
 	return doc, markdown.Validate(doc, parseIssues)
 }
 func fail(issues []markdown.Issue) {

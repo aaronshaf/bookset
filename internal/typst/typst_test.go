@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -57,6 +58,64 @@ func TestNestedListsRenderWithIndentation(t *testing.T) {
 	}
 	if source := Source(doc, style.Trade("en")); !strings.Contains(source, "- Top level\n  - Nested child") {
 		t.Fatalf("Typst source lost nested list indentation:\n%s", source)
+	}
+}
+
+func TestPartEntryRendersAsPartOpener(t *testing.T) {
+	doc := &markdown.Document{BookKind: "part", Title: "Part I: Beginnings"}
+	source := Source(doc, style.Trade("en"))
+	if !strings.Contains(source, "Part I: Beginnings") || !strings.Contains(source, "size: 22pt") {
+		t.Fatalf("Typst source missing part opener:\n%s", source)
+	}
+}
+
+func TestSourceDocumentsCreatesLinkedTOCWithFinalPageCounters(t *testing.T) {
+	toc := &markdown.Document{BookID: "contents", BookKind: "toc", Title: "Contents", ExcludeFromTOC: true}
+	part := &markdown.Document{BookID: "part-one", BookKind: "part", Title: "Part I: Beginnings"}
+	chapter, issues := markdown.Parse([]byte("# First Chapter\n\nText.\n"))
+	if len(issues) != 0 {
+		t.Fatal(markdown.FormatIssues(issues))
+	}
+	chapter.BookID, chapter.BookKind = "first-chapter", "chapter"
+	source := SourceDocuments([]*markdown.Document{toc, part, chapter}, style.Trade("en"))
+	for _, want := range []string{
+		`#label("bookset-toc-part-one")`,
+		`#label("bookset-toc-first-chapter")`,
+		`#link(label("bookset-toc-part-one"))[Part I: Beginnings]`,
+		`#context counter(page).at(label("bookset-toc-first-chapter")).first()`,
+	} {
+		if !strings.Contains(source, want) {
+			t.Errorf("Typst source missing %q:\n%s", want, source)
+		}
+	}
+	if strings.Contains(source, `#label("bookset-toc-contents")`) {
+		t.Fatalf("TOC must not label or list itself:\n%s", source)
+	}
+}
+
+func TestSourceMarkersAndDiagnosticMapping(t *testing.T) {
+	doc, parseIssues := markdown.Parse([]byte("# Title\n\nParagraph.\n"))
+	if issues := markdown.Validate(doc, parseIssues); len(issues) != 0 {
+		t.Fatal(markdown.FormatIssues(issues))
+	}
+	doc.SourcePath = "chapters/example.md"
+	source := Source(doc, style.Trade("en"))
+	if !strings.Contains(source, "// bookset-source: chapters/example.md:3") {
+		t.Fatalf("Typst source missing source marker:\n%s", source)
+	}
+	line := 0
+	for index, value := range strings.Split(source, "\n") {
+		if strings.Contains(value, "#par(") {
+			line = index + 1
+			break
+		}
+	}
+	if line == 0 {
+		t.Fatal("paragraph source line missing")
+	}
+	diagnostic := fmt.Sprintf("error: example\n  ┌─ book.typ:%d:3", line)
+	if got := sourceLocationForTypstDiagnostic(source, diagnostic); got != "chapters/example.md:3" {
+		t.Fatalf("mapped location=%q, want chapters/example.md:3", got)
 	}
 }
 
@@ -252,6 +311,9 @@ func TestPDFSmokeAndDeterminismWhenTypstAvailable(t *testing.T) {
 	if _, err := exec.LookPath("typst"); err != nil {
 		t.Skip("typst not installed")
 	}
+	if err := CheckConfiguredFonts(style.Trade("en")); err != nil {
+		t.Skip("configured PDF test fonts unavailable: " + err.Error())
+	}
 	doc, parseIssues := markdown.Parse([]byte("# Title\n\n**1. Numbered bold lead.** Body text alpha follows here. A *word* from @ColtonBruc3, a transcription \\<Moroni>, and a stray `. [^1]\n\n- Parent item\n  - Nested item\n\n---\n\n**Strong** text.\n\n[^1]: Footnote with a stray `.\n"))
 	if issues := markdown.Validate(doc, parseIssues); len(issues) != 0 {
 		t.Fatal(markdown.FormatIssues(issues))
@@ -285,6 +347,9 @@ func TestPDFSmokeAndDeterminismWhenTypstAvailable(t *testing.T) {
 func TestRenderWithOptionsWritesGeneratedSource(t *testing.T) {
 	if _, err := exec.LookPath("typst"); err != nil {
 		t.Skip("typst not installed")
+	}
+	if err := CheckConfiguredFonts(style.Trade("en")); err != nil {
+		t.Skip("configured PDF test fonts unavailable: " + err.Error())
 	}
 	doc, parseIssues := markdown.Parse([]byte("# Title\n\nText.\n"))
 	if issues := markdown.Validate(doc, parseIssues); len(issues) != 0 {

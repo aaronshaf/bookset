@@ -21,7 +21,8 @@ import (
 )
 
 // Source creates deterministic Typst source. It deliberately contains no
-// timestamps, random IDs, or source-path-dependent values.
+// timestamps or random IDs. Source markers are comments used only to map
+// diagnostics back to Markdown.
 func Source(doc *markdown.Document, cfg style.Config) string {
 	return SourceDocuments([]*markdown.Document{doc}, cfg)
 }
@@ -43,10 +44,19 @@ func sourceDocumentsFromTemplate(docs []*markdown.Document, cfg style.Config, te
 	var content strings.Builder
 	for i, chapter := range docs {
 		if i > 0 {
-			if title := chapterTitle(chapter); title != "" {
-				fmt.Fprintf(&content, "#bookset-chapter.update([%s])\n", typstEscape(title))
+			if chapter.BookKind == "" || chapter.BookKind == "chapter" {
+				if title := chapterTitle(chapter); title != "" {
+					fmt.Fprintf(&content, "#bookset-chapter.update([%s])\n", typstEscape(title))
+				}
 			}
 			content.WriteString("#pagebreak()\n")
+		}
+		if chapter.BookID != "" && !chapter.ExcludeFromTOC && chapter.BookKind != "toc" {
+			fmt.Fprintf(&content, "#label(%q)\n", tocLabel(chapter.BookID))
+		}
+		if chapter.BookKind == "toc" {
+			writeTOC(&content, docs, chapter, cfg)
+			continue
 		}
 		normalized := semantic.Normalize(chapter, cfg)
 		writeBlocks(&content, normalized.Blocks, normalized, cfg)
@@ -60,6 +70,23 @@ func sourceDocumentsFromTemplate(docs []*markdown.Document, cfg style.Config, te
 		return setup + "\n" + content.String()
 	}
 	return out.String()
+}
+
+func tocLabel(id string) string { return "bookset-toc-" + id }
+
+func writeTOC(content *strings.Builder, docs []*markdown.Document, toc *markdown.Document, cfg style.Config) {
+	fmt.Fprintf(content, "#align(center)[#text(font: %q, size: 18pt)[%s]]\n", cfg.HeadingFont, typstEscape(toc.Title))
+	content.WriteString("#v(1.25em)\n")
+	for _, doc := range docs {
+		if doc.ExcludeFromTOC || doc.BookKind == "toc" || doc.BookID == "" {
+			continue
+		}
+		title := chapterTitle(doc)
+		if title == "" {
+			continue
+		}
+		fmt.Fprintf(content, "#block(above: .3em, below: .3em)[#link(label(%q))[%s] #h(1fr) #context counter(page).at(label(%q)).first()]\n", tocLabel(doc.BookID), typstEscape(title), tocLabel(doc.BookID))
+	}
 }
 
 type templateData struct {
@@ -208,12 +235,40 @@ func RenderDocumentsWithOptions(path string, docs []*markdown.Document, cfg styl
 	cmd := exec.Command(typst, args...)
 	cmd.Env = append(os.Environ(), "SOURCE_DATE_EPOCH=0", "LANG="+cfg.Language+"_US.UTF-8", "LC_ALL="+cfg.Language+"_US.UTF-8")
 	if output, err := cmd.CombinedOutput(); err != nil {
-		if options.SourcePath != "" {
-			return fmt.Errorf("typst compile (source: %s): %w: %s", options.SourcePath, err, bytes.TrimSpace(output))
+		diagnostic := string(bytes.TrimSpace(output))
+		if sourceLocation := sourceLocationForTypstDiagnostic(sourceText, diagnostic); sourceLocation != "" {
+			diagnostic += "\nbookset source: " + sourceLocation
 		}
-		return fmt.Errorf("typst compile: %w: %s", err, bytes.TrimSpace(output))
+		if options.SourcePath != "" {
+			return fmt.Errorf("typst compile (source: %s): %w: %s", options.SourcePath, err, diagnostic)
+		}
+		return fmt.Errorf("typst compile: %w: %s", err, diagnostic)
 	}
 	return nil
+}
+
+var typstDiagnosticLocation = regexp.MustCompile(`(?m)book\.typ:(\d+):(\d+)`)
+var sourceMarker = regexp.MustCompile(`^// bookset-source: (.+):(\d+)$`)
+
+func sourceLocationForTypstDiagnostic(source, diagnostic string) string {
+	match := typstDiagnosticLocation.FindStringSubmatch(diagnostic)
+	if len(match) != 3 {
+		return ""
+	}
+	line, err := strconv.Atoi(match[1])
+	if err != nil || line < 1 {
+		return ""
+	}
+	lines := strings.Split(source, "\n")
+	if line > len(lines) {
+		return ""
+	}
+	for index := line - 1; index >= 0; index-- {
+		if marker := sourceMarker.FindStringSubmatch(lines[index]); len(marker) == 3 {
+			return marker[1] + ":" + marker[2]
+		}
+	}
+	return ""
 }
 
 func renderSource(docs []*markdown.Document, cfg style.Config) (string, error) {
@@ -317,6 +372,16 @@ func validateConfiguredFonts(typstPath string, cfg style.Config) error {
 	return nil
 }
 
+// CheckConfiguredFonts verifies that Typst can resolve every font selected by
+// cfg, including fonts supplied through cfg.FontDir. It performs no rendering.
+func CheckConfiguredFonts(cfg style.Config) error {
+	typstPath, err := exec.LookPath("typst")
+	if err != nil {
+		return fmt.Errorf("typst is required for PDF rendering: %w", err)
+	}
+	return validateConfiguredFonts(typstPath, cfg)
+}
+
 func availableFonts(typstPath, fontDir string) (map[string]bool, error) {
 	output, err := exec.Command(typstPath, FontListArgs(fontDir)...).Output()
 	if err != nil {
@@ -351,8 +416,16 @@ const chapterTemplate = `{{.Setup}}
 
 func writeBlocks(b *strings.Builder, blocks []semantic.Block, doc semantic.Document, cfg style.Config) {
 	for _, block := range blocks {
+		writeSourceMarker(b, doc.SourcePath, block.Source)
 		writeSemanticBlock(b, block, doc, cfg)
 	}
+}
+
+func writeSourceMarker(b *strings.Builder, path string, location markdown.SourceLocation) {
+	if path == "" || location.Line == 0 {
+		return
+	}
+	fmt.Fprintf(b, "// bookset-source: %s:%d\n", path, location.Line)
 }
 
 func writeSemanticBlock(b *strings.Builder, block semantic.Block, doc semantic.Document, cfg style.Config) {
@@ -360,6 +433,8 @@ func writeSemanticBlock(b *strings.Builder, block semantic.Block, doc semantic.D
 	case semantic.ChapterOpener:
 		fmt.Fprintf(b, "#bookset-chapter.update([%s])\n", typstEscape(markdown.PlainInline(block.Inlines)))
 		fmt.Fprintf(b, "#chapter-title([%s], [%s])\n", inline(block.Inlines, doc), typstEscape(block.Label))
+	case semantic.PartOpener:
+		fmt.Fprintf(b, "#align(center)[#v(2in)#text(font: %q, size: 22pt, weight: \"bold\")[%s]]\n", cfg.HeadingFont, inline(block.Inlines, doc))
 	case semantic.ThenNow:
 		if block.Label == "NOW" {
 			b.WriteString("#v(0.55em)\n")

@@ -93,6 +93,28 @@ func TestNestedListsReachEPUB(t *testing.T) {
 	}
 }
 
+func TestBookNavigationHonorsTOCEligibility(t *testing.T) {
+	front := &markdown.Document{Title: "Preface", ExcludeFromTOC: true}
+	part := &markdown.Document{Title: "Part I"}
+	chapter := &markdown.Document{Title: "Chapter One"}
+	nav := bookNav([]*markdown.Document{front, part, chapter}, []string{"front.xhtml", "part.xhtml", "chapter.xhtml"})
+	if strings.Contains(nav, "Preface") || !strings.Contains(nav, "Part I") || !strings.Contains(nav, "Chapter One") {
+		t.Fatalf("unexpected EPUB navigation: %s", nav)
+	}
+}
+
+func TestPrintTOCIsExcludedFromEPUBSpine(t *testing.T) {
+	toc := &markdown.Document{BookKind: "toc", Title: "Contents", ExcludeFromTOC: true}
+	chapter := &markdown.Document{BookKind: "chapter", Title: "Chapter One"}
+	spine := spineDocuments([]*markdown.Document{toc, chapter})
+	if len(spine) != 1 || spine[0] != chapter {
+		t.Fatalf("unexpected EPUB spine: %#v", spine)
+	}
+	if nav := bookNav(spine, []string{"chapter.xhtml"}); strings.Contains(nav, `href="contents.xhtml"`) || !strings.Contains(nav, "Chapter One") {
+		t.Fatalf("unexpected EPUB navigation: %s", nav)
+	}
+}
+
 func TestStylesheetReceivesStyleTypography(t *testing.T) {
 	cfg := style.Trade("en")
 	cfg.BodyFont, cfg.HeadingFont, cfg.UtilityFont = "Test Body", "Test Heading", "Test Utility"

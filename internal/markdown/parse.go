@@ -25,11 +25,13 @@ var footnoteDefinition = regexp.MustCompile(`(?m)^\[\^([^\]]+)\]:`)
 func Parse(source []byte) (*Document, []Issue) {
 	body, metadata := stripFrontMatter(source)
 	doc := &Document{Title: metadata["title"], Author: metadata["author"], Language: metadata["language"], Footnotes: map[int][]Inline{}}
+	doc.sourceOffset = bytes.Count(source[:len(source)-len(body)], []byte("\n"))
 	root := goldmark.New(goldmark.WithExtensions(extension.Footnote)).Parser().Parse(textm.NewReader(body))
 	var issues []Issue
 	for node := root.FirstChild(); node != nil; node = node.NextSibling() {
 		block, ok := parseBlock(node, body, doc, &issues)
 		if ok {
+			setBlockSource(&block, node, body, doc.sourceOffset)
 			doc.Blocks = append(doc.Blocks, block)
 		}
 	}
@@ -151,6 +153,7 @@ func parseBlock(node ast.Node, source []byte, doc *Document, issues *[]Issue) (B
 			}
 			if nested, ok := child.(*ast.List); ok {
 				parsed, _ := parseBlock(nested, source, doc, issues)
+				setBlockSource(&parsed, nested, source, doc.sourceOffset)
 				item.Children = append(item.Children, parsed)
 				continue
 			}
@@ -175,10 +178,23 @@ func parseContainer(kind BlockKind, node ast.Node, source []byte, doc *Document,
 		}
 		parsed, ok := parseBlock(child, source, doc, issues)
 		if ok {
+			setBlockSource(&parsed, child, source, doc.sourceOffset)
 			b.Children = append(b.Children, parsed)
 		}
 	}
 	return b
+}
+
+func setBlockSource(block *Block, node ast.Node, source []byte, offset int) {
+	lines := node.Lines()
+	if lines.Len() == 0 {
+		return
+	}
+	start := lines.At(0).Start
+	if start < 0 || start > len(source) {
+		return
+	}
+	block.Source = SourceLocation{Line: offset + 1 + bytes.Count(source[:start], []byte("\n")), Column: 1}
 }
 
 func parseInlines(node ast.Node, source []byte, doc *Document, issues *[]Issue) []Inline {

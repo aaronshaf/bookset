@@ -16,6 +16,17 @@ For complete books, `bookset build --config bookset.toml` loads an ordered
 chapter breaks; EPUB chapters become separate XHTML documents with ordered
 spine entries and navigation links.
 
+New manifests may instead use `[[contents]]` entries with a stable `id` and a
+kind of `front-matter`, `part`, `chapter`, `back-matter`, or `toc`. This is the
+book-sequence model used by both renderers: parts are title-only openers,
+chapter numbering counts only chapter entries, and `toc = false` excludes an
+entry from navigation. An optional, title-only `toc` entry creates a linked PDF
+table of contents at its manifest position. It uses stable entry labels and
+Typst's final page counters, so a complete book is compiled once rather than
+assembled from separately numbered PDFs. EPUB retains its canonical
+`nav.xhtml`; the print-only TOC is omitted from the EPUB spine. `[[chapters]]`
+remains supported for compatibility; the two manifest forms cannot be mixed.
+
 Book builds validate the final artifact against every manifest chapter before
 reporting success. The same check is available explicitly with
 `bookset validate --config bookset.toml --artifact book.pdf` (or `.epub`).

@@ -54,6 +54,8 @@ go run ./cmd/bookset inspect --artifact out/book.pdf --json
 go run ./cmd/bookset inspect --artifact out/book.pdf --json testdata/field-notes.md
 go run ./cmd/bookset build --config bookset.book.example.toml \
   --format epub --output out/book.epub
+go run ./cmd/bookset build --config bookset.contents.example.toml \
+  --format pdf --output out/book.pdf
 go run ./cmd/bookset inspect --config bookset.book.example.toml \
   --artifact out/book.epub --json
 go run ./cmd/bookset validate --config bookset.book.example.toml \
@@ -89,7 +91,8 @@ rendering with `[fonts].manifest`, pointing to a lock file containing
 body, heading, and utility family must appear exactly once. The pinned CI
 toolchain is documented in [toolchain.toml](toolchain.toml). CI runs the
 semantic publishing gate with Typst and Poppler installed; local tests still
-skip PDF smoke checks when those optional tools are unavailable. A PDF build,
+skip PDF smoke checks when those optional tools or the selected test fonts are
+unavailable. A PDF build,
 validation, or inspection made with `--config` requires Poppler's `pdffonts`
 to verify configured font families.
 
@@ -105,12 +108,25 @@ For complete books, set `chapter_label = "CHAPTER"` and
 and so on. A `chapter_label` in an individual `[[chapters]]` entry takes
 precedence, which is useful for an interlude or a deliberately named chapter.
 
+New complete-book manifests can use ordered `[[contents]]` entries with stable
+`id` values and `kind = "front-matter"`, `"part"`, `"chapter"`,
+`"back-matter"`, or `"toc"`. Parts and the optional `toc` entry are title-only;
+the other current kinds point to Markdown sources. A `toc` entry produces a
+native, linked PDF table of contents at exactly that position, with page
+numbers resolved by Typst in the final complete-book render. EPUB uses its
+native `nav.xhtml` instead, so the synthetic PDF TOC is omitted from its spine.
+`toc = false` excludes an entry from both navigation systems. The legacy
+`[[chapters]]` format remains supported, but a manifest may not mix both forms.
+
 Custom template directories are trusted publishing inputs. Rendering a custom
 Typst template evaluates its Typst source, so do not render templates obtained
 from an untrusted party.
 When a Typst compilation error needs deeper diagnosis, pass `--typst-source
 out/book.typ` to `render` or `build`; bookset writes the exact generated source
-before compilation and includes that path in any compile error.
+before compilation and includes that path in any compile error. Generated
+source also carries Markdown source markers, so Typst diagnostics that include
+a generated `book.typ` line are reported with the nearest original Markdown
+file and line.
 The `github.com/santhosh-tekuri/jsonschema/v6` dependency validates the
 versioned machine-readable inspection contract in tests and CI.
 

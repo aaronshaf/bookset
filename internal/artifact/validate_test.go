@@ -189,6 +189,9 @@ func TestPDFArtifactValidationWhenToolsAvailable(t *testing.T) {
 			t.Skip(name + " is not installed")
 		}
 	}
+	if err := typst.CheckConfiguredFonts(style.Trade("en")); err != nil {
+		t.Skip("configured PDF test fonts unavailable: " + err.Error())
+	}
 	doc := fixture(t)
 	path := filepath.Join(t.TempDir(), "book.pdf")
 	if err := typst.Render(path, doc, style.Trade("en")); err != nil {

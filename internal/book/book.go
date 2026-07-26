@@ -12,49 +12,126 @@ import (
 )
 
 type Manuscript struct {
-	Chapters []*markdown.Document
-	Style    style.Config
+	Documents []*markdown.Document
+	Chapters  []*markdown.Document
+	Style     style.Config
 }
 
 func Load(project config.Project) (Manuscript, error) {
-	if len(project.Chapters) == 0 {
-		return Manuscript{}, fmt.Errorf("book config contains no [[chapters]] entries")
+	contents, err := orderedContents(project)
+	if err != nil {
+		return Manuscript{}, err
 	}
 	var result Manuscript
-	for i, chapter := range project.Chapters {
-		if chapter.Source == "" {
-			return Manuscript{}, fmt.Errorf("chapter %d has no source", i+1)
+	chapterNumber := 0
+	tocCount := 0
+	seenIDs := map[string]bool{}
+	for index, entry := range contents {
+		if entry.ID == "" {
+			return Manuscript{}, fmt.Errorf("contents entry %d has no id", index+1)
 		}
-		source, err := os.ReadFile(filepath.Clean(chapter.Source))
-		if err != nil {
-			return Manuscript{}, fmt.Errorf("chapter %q: %w", chapter.Source, err)
+		if seenIDs[entry.ID] {
+			return Manuscript{}, fmt.Errorf("contents entry has duplicate id %q", entry.ID)
 		}
-		doc, parseIssues := markdown.Parse(source)
-		if len(parseIssues) > 0 {
-			return Manuscript{}, fmt.Errorf("chapter %q: %s", chapter.Source, markdown.FormatIssues(parseIssues))
+		seenIDs[entry.ID] = true
+		if entry.Kind == "" {
+			entry.Kind = "chapter"
+		}
+		if !validKind(entry.Kind) {
+			return Manuscript{}, fmt.Errorf("contents entry %q has unsupported kind %q", entry.ID, entry.Kind)
+		}
+		var doc *markdown.Document
+		if entry.Kind == "part" {
+			if entry.Source != "" || entry.Title == "" {
+				return Manuscript{}, fmt.Errorf("part %q requires title and must not set source", entry.ID)
+			}
+			doc = &markdown.Document{Title: entry.Title}
+		} else if entry.Kind == "toc" {
+			if entry.Source != "" {
+				return Manuscript{}, fmt.Errorf("toc %q must not set source", entry.ID)
+			}
+			tocCount++
+			if tocCount > 1 {
+				return Manuscript{}, fmt.Errorf("book config contains more than one toc entry")
+			}
+			title := entry.Title
+			if title == "" {
+				title = "Contents"
+			}
+			doc = &markdown.Document{Title: title}
+		} else {
+			if entry.Source == "" {
+				return Manuscript{}, fmt.Errorf("%s %q has no source", entry.Kind, entry.ID)
+			}
+			source, readErr := os.ReadFile(filepath.Clean(entry.Source))
+			if readErr != nil {
+				return Manuscript{}, fmt.Errorf("contents entry %q: %w", entry.ID, readErr)
+			}
+			var parseIssues []markdown.Issue
+			doc, parseIssues = markdown.Parse(source)
+			doc.SourcePath = filepath.Clean(entry.Source)
+			if len(parseIssues) > 0 {
+				return Manuscript{}, fmt.Errorf("contents entry %q: %s", entry.ID, markdown.FormatIssues(parseIssues))
+			}
+		}
+		doc.BookID, doc.BookKind = entry.ID, entry.Kind
+		doc.ExcludeFromTOC = entry.Kind == "toc" || !tocDefault(entry.Kind, entry.TOC)
+		if entry.Title != "" {
+			doc.Title = entry.Title
 		}
 		if project.Book.Language != "" {
 			doc.Language = project.Book.Language
 		}
-		if project.Book.Title != "" && i == 0 {
+		if project.Book.Title != "" && index == 0 && doc.Title == "" {
 			doc.Title = project.Book.Title
 		}
-		cfg, err := chapterStyle(chapter.Style, doc.Language, project)
+		cfg, err := chapterStyle(entry.Style, doc.Language, project)
 		if err != nil {
-			return Manuscript{}, fmt.Errorf("chapter %q: %w", chapter.Source, err)
+			return Manuscript{}, fmt.Errorf("contents entry %q: %w", entry.ID, err)
 		}
-		if i == 0 {
+		if index == 0 {
 			result.Style = cfg
 		} else if cfg.Name != result.Style.Name || cfg.TemplateDir != result.Style.TemplateDir {
-			return Manuscript{}, fmt.Errorf("chapter %q uses a different style; mixed chapter styles are not supported in one build", chapter.Source)
+			return Manuscript{}, fmt.Errorf("contents entry %q uses a different style; mixed styles are not supported in one build", entry.ID)
 		}
 		if issues := markdown.Validate(doc, nil); len(issues) > 0 {
-			return Manuscript{}, fmt.Errorf("chapter %q: %s", chapter.Source, markdown.FormatIssues(issues))
+			return Manuscript{}, fmt.Errorf("contents entry %q: %s", entry.ID, markdown.FormatIssues(issues))
 		}
-		doc.ChapterLabel = resolvedChapterLabel(chapter.ChapterLabel, cfg.ChapterLabel, project.Book.ChapterNumbering, i+1)
-		result.Chapters = append(result.Chapters, doc)
+		if entry.Kind == "chapter" {
+			chapterNumber++
+			doc.ChapterLabel = resolvedChapterLabel(entry.ChapterLabel, cfg.ChapterLabel, project.Book.ChapterNumbering, chapterNumber)
+			result.Chapters = append(result.Chapters, doc)
+		}
+		result.Documents = append(result.Documents, doc)
 	}
 	return result, nil
+}
+
+func orderedContents(project config.Project) ([]config.Content, error) {
+	if len(project.Contents) > 0 && len(project.Chapters) > 0 {
+		return nil, fmt.Errorf("book config cannot contain both [[contents]] and [[chapters]]")
+	}
+	if len(project.Contents) > 0 {
+		return project.Contents, nil
+	}
+	if len(project.Chapters) == 0 {
+		return nil, fmt.Errorf("book config contains no [[contents]] or [[chapters]] entries")
+	}
+	contents := make([]config.Content, 0, len(project.Chapters))
+	for index, chapter := range project.Chapters {
+		contents = append(contents, config.Content{ID: fmt.Sprintf("chapter-%03d", index+1), Kind: "chapter", Source: chapter.Source, Style: chapter.Style, ChapterLabel: chapter.ChapterLabel})
+	}
+	return contents, nil
+}
+
+func validKind(kind string) bool {
+	return kind == "front-matter" || kind == "part" || kind == "chapter" || kind == "back-matter" || kind == "toc"
+}
+func tocDefault(kind string, value *bool) bool {
+	if value != nil {
+		return *value
+	}
+	return kind == "part" || kind == "chapter"
 }
 
 func resolvedChapterLabel(override, defaultLabel string, numbered bool, number int) string {

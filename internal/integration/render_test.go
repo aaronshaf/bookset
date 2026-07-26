@@ -61,6 +61,9 @@ func TestSemanticChapterPublishesToBothFormats(t *testing.T) {
 			t.Skip(tool + " is not installed; EPUB coverage completed")
 		}
 	}
+	if err := typst.CheckConfiguredFonts(cfg); err != nil {
+		t.Skip("configured PDF test fonts unavailable; EPUB coverage completed: " + err.Error())
+	}
 	pdfOne, pdfTwo := filepath.Join(dir, "one.pdf"), filepath.Join(dir, "two.pdf")
 	if err := typst.Render(pdfOne, doc, cfg); err != nil {
 		t.Fatal(err)
