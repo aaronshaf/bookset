@@ -196,6 +196,25 @@ func TestValidateConfiguredFontsFailsBeforeRendering(t *testing.T) {
 	}
 }
 
+func TestValidateConfiguredFontsUsesConfiguredFontDir(t *testing.T) {
+	dir := t.TempDir()
+	fontDir := filepath.Join(dir, "vendor", "fonts")
+	if err := os.MkdirAll(fontDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	typstPath := filepath.Join(dir, "typst")
+	script := "#!/bin/sh\nif [ \"$1\" != \"fonts\" ] || [ \"$2\" != \"--font-path\" ] || [ \"$3\" != \"" + fontDir + "\" ]; then\n  exit 1\nfi\nprintf '%s\\n' 'Vendored Serif' 'Vendored Sans'\n"
+	if err := os.WriteFile(typstPath, []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	cfg := style.Trade("en")
+	cfg.BodyFont, cfg.HeadingFont, cfg.UtilityFont = "Vendored Serif", "Vendored Serif", "Vendored Sans"
+	cfg.FontDir = fontDir
+	if err := validateConfiguredFonts(typstPath, cfg); err != nil {
+		t.Fatalf("vendored fonts were not checked with their configured font path: %v", err)
+	}
+}
+
 func TestPDFSmokeAndDeterminismWhenTypstAvailable(t *testing.T) {
 	if _, err := exec.LookPath("typst"); err != nil {
 		t.Skip("typst not installed")

@@ -94,8 +94,10 @@ to verify configured font families.
 
 Run `bookset doctor` before beginning PDF work. It checks the pinned Typst
 version, `pdftotext`, `pdfinfo`, `pdffonts`, and the font families selected by
-the requested style. Use `bookset doctor --config bookset.toml` to check the
-effective style of a complete-book manifest.
+the requested style. When `[fonts].dir` is configured, it checks that directory
+with Typst's `--font-path` option—the same search path used for rendering. Use
+`bookset doctor --config bookset.toml` to check the effective style of a
+complete-book manifest.
 
 For complete books, set `chapter_label = "CHAPTER"` and
 `chapter_numbering = true` in `[book]` to produce `CHAPTER 1`, `CHAPTER 2`,

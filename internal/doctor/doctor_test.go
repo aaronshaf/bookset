@@ -46,6 +46,25 @@ func TestCheckPDFReportsReadyToolchain(t *testing.T) {
 	}
 }
 
+func TestCheckPDFUsesConfiguredFontDir(t *testing.T) {
+	runner := fakeRunner{
+		paths: map[string]string{"typst": "/bin/typst", "pdftotext": "/bin/pdftotext", "pdfinfo": "/bin/pdfinfo", "pdffonts": "/bin/pdffonts"},
+		outputs: map[string]string{
+			"/bin/typst --version":                      "typst 0.15.1\n",
+			"/bin/typst fonts --font-path vendor/fonts": "Vendored Serif\nVendored Sans\n",
+			"/bin/pdftotext -v":                         "24.02.0\n",
+			"/bin/pdfinfo -v":                           "24.02.0\n",
+			"/bin/pdffonts -v":                          "24.02.0\n",
+		},
+	}
+	cfg := style.Trade("en")
+	cfg.BodyFont, cfg.HeadingFont, cfg.UtilityFont = "Vendored Serif", "Vendored Serif", "Vendored Sans"
+	cfg.FontDir = "vendor/fonts"
+	if report := checkPDF(runner, cfg); !report.Healthy() {
+		t.Fatalf("doctor did not use configured font path: %#v", report)
+	}
+}
+
 func TestCheckPDFReportsEveryProblem(t *testing.T) {
 	runner := fakeRunner{
 		paths: map[string]string{"typst": "/bin/typst", "pdfinfo": "/bin/pdfinfo"},

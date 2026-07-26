@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/aaronshaf/bookset/internal/style"
+	"github.com/aaronshaf/bookset/internal/typst"
 )
 
 const RequiredTypstVersion = "0.15.1"
@@ -86,7 +87,7 @@ func checkPDF(commands runner, cfg style.Config) Report {
 	if typstPath == "" {
 		return report
 	}
-	output, fontErr := commands.output(typstPath, "fonts")
+	output, fontErr := commands.output(typstPath, typst.FontListArgs(cfg.FontDir)...)
 	if fontErr != nil {
 		report.add("fonts", Fail, "could not list fonts available to Typst")
 		return report

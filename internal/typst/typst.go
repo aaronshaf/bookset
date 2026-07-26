@@ -216,7 +216,7 @@ func validateFonts(typstPath string, cfg style.Config) error {
 	if len(lock.Fonts) == 0 {
 		return fmt.Errorf("font manifest %q contains no [[font]] entries", cfg.FontManifest)
 	}
-	available, err := availableFonts(typstPath)
+	available, err := availableFonts(typstPath, cfg.FontDir)
 	if err != nil {
 		return err
 	}
@@ -270,7 +270,7 @@ func validateFonts(typstPath string, cfg style.Config) error {
 }
 
 func validateConfiguredFonts(typstPath string, cfg style.Config) error {
-	available, err := availableFonts(typstPath)
+	available, err := availableFonts(typstPath, cfg.FontDir)
 	if err != nil {
 		return err
 	}
@@ -282,8 +282,8 @@ func validateConfiguredFonts(typstPath string, cfg style.Config) error {
 	return nil
 }
 
-func availableFonts(typstPath string) (map[string]bool, error) {
-	output, err := exec.Command(typstPath, "fonts").Output()
+func availableFonts(typstPath, fontDir string) (map[string]bool, error) {
+	output, err := exec.Command(typstPath, FontListArgs(fontDir)...).Output()
 	if err != nil {
 		return nil, fmt.Errorf("list Typst fonts: %w", err)
 	}
@@ -294,6 +294,16 @@ func availableFonts(typstPath string) (map[string]bool, error) {
 		}
 	}
 	return available, nil
+}
+
+// FontListArgs returns the Typst command arguments used to list the same font
+// search path that PDF rendering uses.
+func FontListArgs(fontDir string) []string {
+	args := []string{"fonts"}
+	if fontDir != "" {
+		args = append(args, "--font-path", fontDir)
+	}
+	return args
 }
 
 func requiredFontFamilies(cfg style.Config) map[string]bool {
