@@ -28,12 +28,12 @@ func TestSourceEscapesAndPreservesFormatting(t *testing.T) {
 }
 
 func TestSourceEscapesTypstReferencesAndLiteralAngleBrackets(t *testing.T) {
-	doc, parseIssues := markdown.Parse([]byte("# Title\n\n**1. Numbered bold lead.** Body text alpha follows here. Find @ColtonBruc3 and \\<Moroni>.\n"))
+	doc, parseIssues := markdown.Parse([]byte("# Title\n\n**1. Numbered bold lead.** Body text alpha follows here. Find @ColtonBruc3, \\<Moroni>, and a stray `. [^1]\n\n[^1]: A footnote with a stray `.\n"))
 	if issues := markdown.Validate(doc, parseIssues); len(issues) != 0 {
 		t.Fatal(markdown.FormatIssues(issues))
 	}
 	source := Source(doc, style.Trade("en"))
-	for _, want := range []string{`#strong[#h(0pt)1. Numbered bold lead.]`, `\@ColtonBruc3`, `\<Moroni\>`} {
+	for _, want := range []string{`#strong[#h(0pt)1. Numbered bold lead.]`, `\@ColtonBruc3`, `\<Moroni\>`, "\\`"} {
 		if !strings.Contains(source, want) {
 			t.Errorf("Typst source missing escaped literal %q:\n%s", want, source)
 		}
@@ -252,7 +252,7 @@ func TestPDFSmokeAndDeterminismWhenTypstAvailable(t *testing.T) {
 	if _, err := exec.LookPath("typst"); err != nil {
 		t.Skip("typst not installed")
 	}
-	doc, parseIssues := markdown.Parse([]byte("# Title\n\n**1. Numbered bold lead.** Body text alpha follows here. A *word* from @ColtonBruc3 and a transcription \\<Moroni>.\n\n- Parent item\n  - Nested item\n\n---\n\n**Strong** text.\n"))
+	doc, parseIssues := markdown.Parse([]byte("# Title\n\n**1. Numbered bold lead.** Body text alpha follows here. A *word* from @ColtonBruc3, a transcription \\<Moroni>, and a stray `. [^1]\n\n- Parent item\n  - Nested item\n\n---\n\n**Strong** text.\n\n[^1]: Footnote with a stray `.\n"))
 	if issues := markdown.Validate(doc, parseIssues); len(issues) != 0 {
 		t.Fatal(markdown.FormatIssues(issues))
 	}

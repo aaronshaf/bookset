@@ -500,7 +500,7 @@ func inlineAtStart(inlines []markdown.Inline, doc semantic.Document) string {
 
 func typstEscape(value string) string {
 	value = strings.ReplaceAll(value, "\\", "\\\\")
-	for _, char := range []string{"#", "[", "]", "{", "}", "*", "_", "$", "@", "<", ">"} {
+	for _, char := range []string{"#", "[", "]", "{", "}", "*", "_", "$", "@", "<", ">", "`"} {
 		value = strings.ReplaceAll(value, char, "\\"+char)
 	}
 	return value
