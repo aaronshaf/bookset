@@ -38,10 +38,8 @@ To work from a checkout, use `go run ./cmd/bookset ...` or build it with
   inspection and validation;
 - fonts required by the selected preset.
 
-All bundled presets use open fonts. The `trade` preset uses Libertinus Serif
-and Libertinus Sans; `classic-trade` and `timeline-trade` use Source Serif 4
-and Source Sans 3. Font files are external inputs and are not distributed by
-this repository.
+All bundled presets use Source Serif 4 and Source Sans 3. Font files are
+external inputs and are not distributed by this repository.
 
 ```sh
 go run ./cmd/bookset version
@@ -77,10 +75,12 @@ block
 but emits an 8.5×11 proof sheet with crop marks.
 
 PDF rendering requires Typst 0.15.1 (or a compatible pinned version) on
-`PATH`. The `trade` preset uses Typst's Libertinus fonts. The
-`classic-trade` and `timeline-trade` presets use Source Serif 4 and Source Sans
-3. `go-toml/v2` is used because Go has no standard TOML package; Goldmark
-provides the mature CommonMark/GFM AST and footnote parser.
+`PATH`. Before rendering, bookset verifies that every configured body,
+heading, and utility family is available to Typst. Configuration-aware PDF
+validation and inspection then verify the families embedded in the result, so
+silent font substitution becomes a failure. `go-toml/v2` is used because Go
+has no standard TOML package; Goldmark provides the mature CommonMark/GFM AST
+and footnote parser.
 For reproducible releases, pin the Typst binary and record font file
 checksums in the build environment. A project can enforce this before PDF
 rendering with `[fonts].manifest`, pointing to a lock file containing
@@ -88,7 +88,14 @@ rendering with `[fonts].manifest`, pointing to a lock file containing
 body, heading, and utility family must appear exactly once. The pinned CI
 toolchain is documented in [toolchain.toml](toolchain.toml). CI runs the
 semantic publishing gate with Typst and Poppler installed; local tests still
-skip PDF inspection when those optional tools are unavailable.
+skip PDF smoke checks when those optional tools are unavailable. A PDF build,
+validation, or inspection made with `--config` requires Poppler's `pdffonts`
+to verify configured font families.
+
+For complete books, set `chapter_label = "CHAPTER"` and
+`chapter_numbering = true` in `[book]` to produce `CHAPTER 1`, `CHAPTER 2`,
+and so on. A `chapter_label` in an individual `[[chapters]]` entry takes
+precedence, which is useful for an interlude or a deliberately named chapter.
 
 Custom template directories are trusted publishing inputs. Rendering a custom
 Typst template evaluates its Typst source, so do not render templates obtained

@@ -46,6 +46,10 @@ type Block struct {
 
 func Normalize(doc *markdown.Document, cfg style.Config) Document {
 	out := Document{Title: doc.Title, Author: doc.Author, Language: doc.Language, Footnotes: doc.Footnotes}
+	chapterLabel := cfg.ChapterLabel
+	if doc.ChapterLabel != "" {
+		chapterLabel = doc.ChapterLabel
+	}
 	firstHeading := true
 	inTimeline := false
 	sectionNumber := 0
@@ -55,8 +59,8 @@ func Normalize(doc *markdown.Document, cfg style.Config) Document {
 			if inTimeline {
 				inTimeline = false
 			}
-			if firstHeading && block.Level == 1 && cfg.ChapterLabel != "" {
-				out.Blocks = append(out.Blocks, Block{Kind: ChapterOpener, Level: block.Level, Inlines: block.Inlines, Label: cfg.ChapterLabel})
+			if firstHeading && block.Level == 1 && chapterLabel != "" {
+				out.Blocks = append(out.Blocks, Block{Kind: ChapterOpener, Level: block.Level, Inlines: block.Inlines, Label: chapterLabel})
 				firstHeading = false
 				continue
 			}

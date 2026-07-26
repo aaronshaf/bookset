@@ -3,11 +3,12 @@ package markdown
 // Document is the small, renderer-independent manuscript model used by all
 // bookset backends.
 type Document struct {
-	Title     string
-	Author    string
-	Language  string
-	Blocks    []Block
-	Footnotes map[int][]Inline
+	Title        string
+	Author       string
+	Language     string
+	ChapterLabel string
+	Blocks       []Block
+	Footnotes    map[int][]Inline
 }
 
 type Block struct {

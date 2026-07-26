@@ -2,6 +2,8 @@
 title = "The Practice of Careful History"
 language = "en"
 trim = "6x9"
+chapter_label = "CHAPTER"
+chapter_numbering = true
 
 [templates]
 dir = "templates/timeline-trade"

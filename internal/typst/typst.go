@@ -154,6 +154,9 @@ func RenderDocuments(path string, docs []*markdown.Document, cfg style.Config) e
 	if err != nil {
 		return fmt.Errorf("typst is required for PDF rendering: %w", err)
 	}
+	if err := validateConfiguredFonts(typst, cfg); err != nil {
+		return err
+	}
 	if cfg.FontManifest != "" {
 		if err := validateFonts(typst, cfg); err != nil {
 			return err
@@ -213,15 +216,11 @@ func validateFonts(typstPath string, cfg style.Config) error {
 	if len(lock.Fonts) == 0 {
 		return fmt.Errorf("font manifest %q contains no [[font]] entries", cfg.FontManifest)
 	}
-	output, err := exec.Command(typstPath, "fonts").Output()
+	available, err := availableFonts(typstPath)
 	if err != nil {
-		return fmt.Errorf("list Typst fonts: %w", err)
+		return err
 	}
-	available := map[string]bool{}
-	for _, line := range strings.Split(string(output), "\n") {
-		available[strings.TrimSpace(line)] = true
-	}
-	required := map[string]bool{cfg.BodyFont: true, cfg.HeadingFont: true, cfg.UtilityFont: true}
+	required := requiredFontFamilies(cfg)
 	for family := range required {
 		if family != "" && !available[family] {
 			return fmt.Errorf("required font family %q is not available to Typst", family)
@@ -268,6 +267,37 @@ func validateFonts(typstPath string, cfg style.Config) error {
 		}
 	}
 	return nil
+}
+
+func validateConfiguredFonts(typstPath string, cfg style.Config) error {
+	available, err := availableFonts(typstPath)
+	if err != nil {
+		return err
+	}
+	for family := range requiredFontFamilies(cfg) {
+		if family != "" && !available[family] {
+			return fmt.Errorf("required font family %q is not available to Typst", family)
+		}
+	}
+	return nil
+}
+
+func availableFonts(typstPath string) (map[string]bool, error) {
+	output, err := exec.Command(typstPath, "fonts").Output()
+	if err != nil {
+		return nil, fmt.Errorf("list Typst fonts: %w", err)
+	}
+	available := map[string]bool{}
+	for _, line := range strings.Split(string(output), "\n") {
+		if family := strings.TrimSpace(line); family != "" {
+			available[family] = true
+		}
+	}
+	return available, nil
+}
+
+func requiredFontFamilies(cfg style.Config) map[string]bool {
+	return map[string]bool{cfg.BodyFont: true, cfg.HeadingFont: true, cfg.UtilityFont: true}
 }
 
 const chapterTemplate = `{{.Setup}}

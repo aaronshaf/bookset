@@ -51,9 +51,23 @@ func Load(project config.Project) (Manuscript, error) {
 		if issues := markdown.Validate(doc, nil); len(issues) > 0 {
 			return Manuscript{}, fmt.Errorf("chapter %q: %s", chapter.Source, markdown.FormatIssues(issues))
 		}
+		doc.ChapterLabel = resolvedChapterLabel(chapter.ChapterLabel, cfg.ChapterLabel, project.Book.ChapterNumbering, i+1)
 		result.Chapters = append(result.Chapters, doc)
 	}
 	return result, nil
+}
+
+func resolvedChapterLabel(override, defaultLabel string, numbered bool, number int) string {
+	if override != "" {
+		return override
+	}
+	if defaultLabel == "" {
+		return ""
+	}
+	if numbered {
+		return fmt.Sprintf("%s %d", defaultLabel, number)
+	}
+	return defaultLabel
 }
 
 func chapterStyle(name, language string, project config.Project) (style.Config, error) {

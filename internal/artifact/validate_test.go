@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/aaronshaf/bookset/internal/epub"
@@ -139,6 +140,27 @@ func TestMissingFragmentNormalizesTrackedHeadingText(t *testing.T) {
 	}
 	if missing := missingFragment("Title T H E B I B L I C A L PAT T E R N Text.", []*markdown.Document{doc}); missing != "" {
 		t.Fatalf("tracked heading was reported missing: %q", missing)
+	}
+}
+
+func TestExpectedPDFFontFamiliesTrackRenderedRoles(t *testing.T) {
+	doc, parseIssues := markdown.Parse([]byte("# Title\n\nBody text.\n\n**THEN:** Context.\n"))
+	if issues := markdown.Validate(doc, parseIssues); len(issues) != 0 {
+		t.Fatal(markdown.FormatIssues(issues))
+	}
+	cfg := style.Trade("en")
+	cfg.BodyFont, cfg.HeadingFont, cfg.UtilityFont = "Source Serif 4", "Source Serif 4", "Source Sans 3"
+	cfg.ChapterLabel = "CHAPTER 1"
+	cfg.PageBreakAfterThenNow = true
+	want := []string{"Source Sans 3", "Source Serif 4"}
+	if got := expectedPDFFontFamilies([]*markdown.Document{doc}, cfg, 1); strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("expected fonts %v, got %v", want, got)
+	}
+	if missing := missingExpectedFontFamilies(want, []string{"ABCDEF+SourceSerif4-Regular", "SourceSans3-Bold"}); len(missing) != 0 {
+		t.Fatalf("subset font names should match expected families, missing %v", missing)
+	}
+	if missing := missingExpectedFontFamilies(want, []string{"SourceSerif4-Regular"}); strings.Join(missing, ", ") != "Source Sans 3" {
+		t.Fatalf("missing fonts %v", missing)
 	}
 }
 

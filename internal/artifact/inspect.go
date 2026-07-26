@@ -14,6 +14,7 @@ import (
 
 	"github.com/aaronshaf/bookset/internal/epub"
 	"github.com/aaronshaf/bookset/internal/markdown"
+	"github.com/aaronshaf/bookset/internal/style"
 )
 
 // Inspection is a stable, machine-readable artifact report. The schema field
@@ -48,9 +49,10 @@ type ArtifactInfo struct {
 }
 
 type PDFInfo struct {
-	Pages    int      `json:"pages,omitempty"`
-	PageSize string   `json:"page_size,omitempty"`
-	Fonts    []string `json:"fonts,omitempty"`
+	Pages         int      `json:"pages,omitempty"`
+	PageSize      string   `json:"page_size,omitempty"`
+	Fonts         []string `json:"fonts,omitempty"`
+	ExpectedFonts []string `json:"expected_fonts,omitempty"`
 }
 
 type EPUBInfo struct {
@@ -127,6 +129,31 @@ func InspectArtifactAgainst(path string, docs []*markdown.Document) (Inspection,
 	}
 	if len(report.Issues) > 0 {
 		report.Status = "error"
+	}
+	return report, nil
+}
+
+// InspectArtifactAgainstWithStyle additionally verifies that the font families
+// required by the selected style were embedded in a PDF. Use this when the
+// manuscript and its rendering configuration are both available.
+func InspectArtifactAgainstWithStyle(path string, docs []*markdown.Document, cfg style.Config) (Inspection, error) {
+	report, err := InspectArtifactAgainst(path, docs)
+	if err != nil || report.Artifact.PDF == nil {
+		return report, err
+	}
+	expected := expectedPDFFontFamilies(docs, cfg, report.Artifact.PDF.Pages)
+	report.Artifact.PDF.ExpectedFonts = expected
+	if len(expected) == 0 {
+		return report, nil
+	}
+	if len(report.Artifact.PDF.Fonts) == 0 {
+		addCheck(&report, "pdf.font-families", "error", "missing", "PDF does not embed the configured font families: "+strings.Join(expected, ", "))
+		return report, nil
+	}
+	if missing := missingExpectedFontFamilies(expected, report.Artifact.PDF.Fonts); len(missing) > 0 {
+		addCheck(&report, "pdf.font-families", "error", "missing", "PDF is missing configured embedded font families: "+strings.Join(missing, ", "))
+	} else {
+		addCheck(&report, "pdf.font-families", "info", "pass", "PDF embeds every configured font family used by the manuscript")
 	}
 	return report, nil
 }

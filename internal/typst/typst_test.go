@@ -183,6 +183,19 @@ func TestValidateFontsChecksAvailabilityAndChecksum(t *testing.T) {
 	}
 }
 
+func TestValidateConfiguredFontsFailsBeforeRendering(t *testing.T) {
+	dir := t.TempDir()
+	typstPath := filepath.Join(dir, "typst")
+	if err := os.WriteFile(typstPath, []byte("#!/bin/sh\nprintf '%s\\n' 'Source Serif 4'\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	cfg := style.Trade("en")
+	cfg.BodyFont, cfg.HeadingFont, cfg.UtilityFont = "Source Serif 4", "Source Serif 4", "Source Sans 3"
+	if err := validateConfiguredFonts(typstPath, cfg); err == nil || !strings.Contains(err.Error(), "Source Sans 3") {
+		t.Fatalf("expected missing configured font failure, got %v", err)
+	}
+}
+
 func TestPDFSmokeAndDeterminismWhenTypstAvailable(t *testing.T) {
 	if _, err := exec.LookPath("typst"); err != nil {
 		t.Skip("typst not installed")

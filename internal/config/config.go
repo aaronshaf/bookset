@@ -20,10 +20,11 @@ type Project struct {
 }
 
 type Book struct {
-	Title        string `toml:"title"`
-	Language     string `toml:"language"`
-	Trim         string `toml:"trim"`
-	ChapterLabel string `toml:"chapter_label"`
+	Title            string `toml:"title"`
+	Language         string `toml:"language"`
+	Trim             string `toml:"trim"`
+	ChapterLabel     string `toml:"chapter_label"`
+	ChapterNumbering bool   `toml:"chapter_numbering"`
 }
 type Typography struct {
 	BodyFont    string `toml:"body_font"`
@@ -55,8 +56,9 @@ type Fonts struct {
 }
 
 type Chapter struct {
-	Source string `toml:"source"`
-	Style  string `toml:"style"`
+	Source       string `toml:"source"`
+	Style        string `toml:"style"`
+	ChapterLabel string `toml:"chapter_label"`
 }
 
 func Load(path string) (Project, error) {

@@ -48,7 +48,7 @@ func Preset(name, language string) (Config, bool) {
 	}
 	switch name {
 	case "trade":
-		return Config{Name: name, Margin: "0.78in", BodyFont: "Libertinus Serif", HeadingFont: "Libertinus Serif", UtilityFont: "Libertinus Sans", Language: language, BodySize: "10.25pt", Leading: "14.5pt", Trim: "6x9", RunningHeads: true, TemplateDir: "templates"}, true
+		return Config{Name: name, Margin: "0.78in", BodyFont: "Source Serif 4", HeadingFont: "Source Serif 4", UtilityFont: "Source Sans 3", Language: language, BodySize: "10.25pt", Leading: "14.5pt", Trim: "6x9", RunningHeads: true, TemplateDir: "templates"}, true
 	case "classic-trade":
 		return Config{Name: name, Margin: "(inside: 0.85in, outside: 0.70in, top: 0.70in, bottom: 0.75in)", BodyFont: "Source Serif 4", HeadingFont: "Source Serif 4", UtilityFont: "Source Sans 3", Language: language, BodySize: "10.25pt", Leading: "14.5pt", Trim: "6x9", RunningHeads: true, TemplateDir: "templates"}, true
 	case "timeline-trade":

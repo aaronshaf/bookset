@@ -163,7 +163,7 @@ func build(args []string) {
 		err = typst.RenderDocuments(*output, manuscript.Chapters, manuscript.Style)
 	}
 	if err == nil {
-		if issues := artifact.ValidateDocuments(*output, manuscript.Chapters); len(issues) > 0 {
+		if issues := artifact.ValidateDocumentsWithStyle(*output, manuscript.Chapters, manuscript.Style); len(issues) > 0 {
 			err = fmt.Errorf("artifact validation failed: %s", strings.Join(artifact.SortedMessages(issues), "; "))
 		}
 	}
@@ -205,7 +205,7 @@ func validate(args []string) {
 			fmt.Println("valid:", *configPath)
 			return
 		}
-		if issues := artifact.ValidateDocuments(*artifactPath, manuscript.Chapters); len(issues) > 0 {
+		if issues := artifact.ValidateDocumentsWithStyle(*artifactPath, manuscript.Chapters, manuscript.Style); len(issues) > 0 {
 			messages := make([]markdown.Issue, 0, len(issues))
 			for _, issue := range issues {
 				messages = append(messages, markdown.Issue{Message: issue.Error()})
@@ -263,7 +263,7 @@ func inspect(args []string) {
 				fmt.Fprintln(os.Stderr, "bookset:", loadErr)
 				os.Exit(1)
 			}
-			report, err = artifact.InspectArtifactAgainst(*artifactPath, manuscript.Chapters)
+			report, err = artifact.InspectArtifactAgainstWithStyle(*artifactPath, manuscript.Chapters, manuscript.Style)
 			paths := make([]string, 0, len(project.Chapters))
 			titles := make([]string, 0, len(manuscript.Chapters))
 			footnotes := 0

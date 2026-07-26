@@ -19,6 +19,10 @@ spine entries and navigation links.
 Book builds validate the final artifact against every manifest chapter before
 reporting success. The same check is available explicitly with
 `bookset validate --config bookset.toml --artifact book.pdf` (or `.epub`).
+`[book].chapter_numbering = true` appends each one-based manifest position to
+`[book].chapter_label`; an individual `[[chapters]].chapter_label` is an
+explicit override. This makes chapter identity book metadata rather than a
+literal duplicated in every source document.
 
 `bookset inspect --artifact FILE --json` emits the stable
 `bookset.artifact-inspection.v1` report for agents and CI. It includes the
@@ -34,6 +38,10 @@ report, with stable issue codes such as `fidelity.text`, `fidelity.italic`,
 For complete books, replace `INPUT.md` with `--config bookset.toml`; the
 report then includes ordered chapter paths and titles, and each fidelity issue
 includes its one-based `chapter` number.
+When used with `--config` for a PDF, the report also records the configured
+font families actually needed by the normalized manuscript and fails when an
+expected family is absent from `pdffonts` output. PDF subset prefixes and style
+suffixes are normalized during this comparison.
 
 The document model contains headings, paragraphs, quotes, lists, text,
 emphasis, strong text, and footnote references/definitions. A renderer-level
@@ -43,10 +51,11 @@ nodes are validation errors; they are never silently discarded. Plain-text
 projection and footnote-set checks provide the first textual-fidelity guard.
 
 Artifact validation is a second guard. PDF validation uses `pdftotext`,
-`pdfinfo`, and `pdffonts` when available; EPUB validation checks the ZIP/XML
-container, XHTML text, formatting tags, and footnote links. Missing optional
-inspection tools produce a diagnostic rather than silently claiming a stronger
-check than was performed.
+`pdfinfo`, and `pdffonts`; EPUB validation checks the ZIP/XML container, XHTML
+text, formatting tags, and footnote links. Standalone inspection can report a
+missing tool as a warning. Configuration-aware PDF builds, validation, and
+inspection instead fail without `pdffonts`, because they cannot prove the
+selected font families were embedded.
 
 Styles are selected by name or TOML path. Project TOML can override book
 metadata, trim, typography, margins, pagination flags, and the template

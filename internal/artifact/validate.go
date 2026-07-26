@@ -14,6 +14,7 @@ import (
 
 	"github.com/aaronshaf/bookset/internal/epub"
 	"github.com/aaronshaf/bookset/internal/markdown"
+	"github.com/aaronshaf/bookset/internal/style"
 )
 
 type Issue struct{ Message string }
@@ -33,6 +34,35 @@ func ValidateDocuments(path string, docs []*markdown.Document) []Issue {
 	default:
 		return []Issue{{fmt.Sprintf("unsupported artifact format: %s", filepath.Ext(path))}}
 	}
+}
+
+// ValidateDocumentsWithStyle adds a PDF font-family fidelity check when the
+// style used to render the manuscript is known.
+func ValidateDocumentsWithStyle(path string, docs []*markdown.Document, cfg style.Config) []Issue {
+	issues := ValidateDocuments(path, docs)
+	if strings.EqualFold(filepath.Ext(path), ".pdf") {
+		issues = append(issues, validateExpectedPDFFonts(path, docs, cfg)...)
+	}
+	return issues
+}
+
+func validateExpectedPDFFonts(path string, docs []*markdown.Document, cfg style.Config) []Issue {
+	pages := 0
+	if info, err := commandOutput("pdfinfo", path); err == nil {
+		pages = parseInfoInt(info, "Pages")
+	}
+	expected := expectedPDFFontFamilies(docs, cfg, pages)
+	if len(expected) == 0 {
+		return nil
+	}
+	output, err := commandOutput("pdffonts", path)
+	if err != nil {
+		return []Issue{{fmt.Sprintf("could not inspect configured PDF font families: %v", err)}}
+	}
+	if missing := missingExpectedFontFamilies(expected, parsePDFFonts(output)); len(missing) > 0 {
+		return []Issue{{"PDF is missing configured embedded font families: " + strings.Join(missing, ", ")}}
+	}
+	return nil
 }
 
 func validatePDF(path string, docs []*markdown.Document) []Issue {

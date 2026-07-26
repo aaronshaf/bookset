@@ -32,7 +32,8 @@
       "properties": {
         "pages": { "type": "integer", "minimum": 1 },
         "page_size": { "type": "string" },
-        "fonts": { "type": "array", "items": { "type": "string" } }
+        "fonts": { "type": "array", "items": { "type": "string" } },
+        "expected_fonts": { "type": "array", "items": { "type": "string" } }
       }
     },
     "epub": {
