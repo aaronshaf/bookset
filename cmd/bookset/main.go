@@ -11,6 +11,7 @@ import (
 	"github.com/aaronshaf/bookset/internal/artifact"
 	"github.com/aaronshaf/bookset/internal/book"
 	"github.com/aaronshaf/bookset/internal/config"
+	"github.com/aaronshaf/bookset/internal/doctor"
 	"github.com/aaronshaf/bookset/internal/epub"
 	"github.com/aaronshaf/bookset/internal/markdown"
 	"github.com/aaronshaf/bookset/internal/style"
@@ -27,6 +28,8 @@ func main() {
 	switch os.Args[1] {
 	case "version":
 		fmt.Println(version.Value)
+	case "doctor":
+		doctorCommand(os.Args[2:])
 	case "render":
 		render(os.Args[2:])
 	case "build":
@@ -38,6 +41,50 @@ func main() {
 	default:
 		usage()
 		os.Exit(2)
+	}
+}
+
+func doctorCommand(args []string) {
+	flags := flag.NewFlagSet("doctor", flag.ExitOnError)
+	styleName := flags.String("style", "trade", "style whose configured fonts to check")
+	configPath := flags.String("config", "", "project or book TOML configuration")
+	flags.Parse(args)
+	if flags.NArg() != 0 {
+		fmt.Fprintln(os.Stderr, "usage: bookset doctor [--style STYLE] [--config bookset.toml]")
+		os.Exit(2)
+	}
+	cfg, err := resolveStyle(*styleName, "en")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "bookset:", err)
+		os.Exit(2)
+	}
+	if *configPath != "" {
+		project, configErr := config.Load(*configPath)
+		if configErr != nil {
+			fmt.Fprintln(os.Stderr, "bookset:", configErr)
+			os.Exit(2)
+		}
+		if len(project.Chapters) > 0 {
+			manuscript, loadErr := book.Load(project)
+			if loadErr != nil {
+				fmt.Fprintln(os.Stderr, "bookset:", loadErr)
+				os.Exit(2)
+			}
+			cfg = manuscript.Style
+		} else {
+			cfg, err = style.ApplyProject(cfg, project)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "bookset:", err)
+				os.Exit(2)
+			}
+		}
+	}
+	report := doctor.CheckPDF(cfg)
+	for _, check := range report.Checks {
+		fmt.Printf("%s %s: %s\n", check.Status, check.Name, check.Message)
+	}
+	if !report.Healthy() {
+		os.Exit(1)
 	}
 }
 
@@ -370,5 +417,6 @@ func usage() {
 	fmt.Println("  bookset validate [--config bookset.toml] [--artifact FILE] INPUT.md")
 	fmt.Println("  bookset inspect [--json] INPUT.md")
 	fmt.Println("  bookset inspect --artifact FILE [--config bookset.toml | INPUT.md] [--json] [--strict]")
+	fmt.Println("  bookset doctor [--style STYLE] [--config bookset.toml]")
 	fmt.Println("  bookset version")
 }

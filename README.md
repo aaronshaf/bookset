@@ -43,6 +43,7 @@ external inputs and are not distributed by this repository.
 
 ```sh
 go run ./cmd/bookset version
+go run ./cmd/bookset doctor --config bookset.book.example.toml
 go run ./cmd/bookset render --format pdf --output out/book.pdf testdata/field-notes.md
 go run ./cmd/bookset render --format epub --output out/book.epub testdata/field-notes.md
 go run ./cmd/bookset validate testdata/field-notes.md
@@ -74,8 +75,7 @@ The optional `--sheet letter --trim-marks` mode keeps the configured 6×9 text
 block
 but emits an 8.5×11 proof sheet with crop marks.
 
-PDF rendering requires Typst 0.15.1 (or a compatible pinned version) on
-`PATH`. Before rendering, bookset verifies that every configured body,
+PDF rendering requires Typst 0.15.1 on `PATH`. Before rendering, bookset verifies that every configured body,
 heading, and utility family is available to Typst. Configuration-aware PDF
 validation and inspection then verify the families embedded in the result, so
 silent font substitution becomes a failure. `go-toml/v2` is used because Go
@@ -91,6 +91,11 @@ semantic publishing gate with Typst and Poppler installed; local tests still
 skip PDF smoke checks when those optional tools are unavailable. A PDF build,
 validation, or inspection made with `--config` requires Poppler's `pdffonts`
 to verify configured font families.
+
+Run `bookset doctor` before beginning PDF work. It checks the pinned Typst
+version, `pdftotext`, `pdfinfo`, `pdffonts`, and the font families selected by
+the requested style. Use `bookset doctor --config bookset.toml` to check the
+effective style of a complete-book manifest.
 
 For complete books, set `chapter_label = "CHAPTER"` and
 `chapter_numbering = true` in `[book]` to produce `CHAPTER 1`, `CHAPTER 2`,
