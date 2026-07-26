@@ -157,11 +157,29 @@ func missingFragment(output string, docs []*markdown.Document) string {
 		return "no manuscript text"
 	}
 	for _, fragment := range fragments {
-		if normalized := compact(fragment); normalized != "" && !containsOrderedTokens(outputTokens, tokens(fragment)) && !strings.Contains(compactOutput, normalized) {
-			return normalized
+		for _, chunk := range validationChunks(fragment, 12) {
+			if normalized := compact(chunk); normalized != "" && !containsOrderedTokens(outputTokens, tokens(chunk)) && !strings.Contains(compactOutput, normalized) {
+				return normalized
+			}
 		}
 	}
 	return ""
+}
+
+func validationChunks(fragment string, size int) []string {
+	words := tokens(fragment)
+	if len(words) <= size {
+		return []string{fragment}
+	}
+	chunks := make([]string, 0, (len(words)+size-1)/size)
+	for start := 0; start < len(words); start += size {
+		end := start + size
+		if end > len(words) {
+			end = len(words)
+		}
+		chunks = append(chunks, strings.Join(words[start:end], " "))
+	}
+	return chunks
 }
 
 func tokens(value string) []string {

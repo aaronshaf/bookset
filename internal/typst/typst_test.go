@@ -28,12 +28,12 @@ func TestSourceEscapesAndPreservesFormatting(t *testing.T) {
 }
 
 func TestSourceEscapesTypstReferencesAndLiteralAngleBrackets(t *testing.T) {
-	doc, parseIssues := markdown.Parse([]byte("# Title\n\nFind @ColtonBruc3 and \\<Moroni>.\n"))
+	doc, parseIssues := markdown.Parse([]byte("# Title\n\n**1. Numbered bold lead.** Body text alpha follows here. Find @ColtonBruc3 and \\<Moroni>.\n"))
 	if issues := markdown.Validate(doc, parseIssues); len(issues) != 0 {
 		t.Fatal(markdown.FormatIssues(issues))
 	}
 	source := Source(doc, style.Trade("en"))
-	for _, want := range []string{`\@ColtonBruc3`, `\<Moroni\>`} {
+	for _, want := range []string{`#strong[#h(0pt)1. Numbered bold lead.]`, `\@ColtonBruc3`, `\<Moroni\>`} {
 		if !strings.Contains(source, want) {
 			t.Errorf("Typst source missing escaped literal %q:\n%s", want, source)
 		}
@@ -242,7 +242,7 @@ func TestPDFSmokeAndDeterminismWhenTypstAvailable(t *testing.T) {
 	if _, err := exec.LookPath("typst"); err != nil {
 		t.Skip("typst not installed")
 	}
-	doc, parseIssues := markdown.Parse([]byte("# Title\n\nA *word* from @ColtonBruc3 and a transcription \\<Moroni>.\n\n---\n\n**Strong** text.\n"))
+	doc, parseIssues := markdown.Parse([]byte("# Title\n\n**1. Numbered bold lead.** Body text alpha follows here. A *word* from @ColtonBruc3 and a transcription \\<Moroni>.\n\n---\n\n**Strong** text.\n"))
 	if issues := markdown.Validate(doc, parseIssues); len(issues) != 0 {
 		t.Fatal(markdown.FormatIssues(issues))
 	}
@@ -253,6 +253,17 @@ func TestPDFSmokeAndDeterminismWhenTypstAvailable(t *testing.T) {
 	}
 	if err := Render(second, doc, style.Trade("en")); err != nil {
 		t.Fatal(err)
+	}
+	if pdftotext, err := exec.LookPath("pdftotext"); err == nil {
+		text, extractErr := exec.Command(pdftotext, first, "-").Output()
+		if extractErr != nil {
+			t.Fatal(extractErr)
+		}
+		for _, want := range []string{"1. Numbered bold lead.", "Body text alpha follows here."} {
+			if !strings.Contains(string(text), want) {
+				t.Fatalf("PDF lost numbered bold lead text %q:\n%s", want, text)
+			}
+		}
 	}
 	a, _ := os.ReadFile(first)
 	b, _ := os.ReadFile(second)

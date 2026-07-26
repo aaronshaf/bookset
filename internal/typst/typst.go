@@ -410,27 +410,47 @@ func writeBlock(b *strings.Builder, block semantic.Block, doc semantic.Document,
 }
 
 func inline(inlines []markdown.Inline, doc semantic.Document) string {
+	return inlineAtStart(inlines, doc)
+}
+
+var typstListMarker = regexp.MustCompile(`^\d+\.\s`)
+
+func inlineAtStart(inlines []markdown.Inline, doc semantic.Document) string {
 	var b strings.Builder
+	atStart := true
 	for _, in := range inlines {
 		switch in.Kind {
 		case markdown.Text:
+			if atStart && typstListMarker.MatchString(in.Text) {
+				// Typst recognizes "1. " as a list marker even inside an
+				// emphasis content block. A zero-width inline element keeps the
+				// marker literal without changing the printed result.
+				b.WriteString("#h(0pt)")
+			}
 			b.WriteString(typstEscape(in.Text))
+			if strings.TrimSpace(in.Text) != "" {
+				atStart = false
+			}
 		case markdown.Emphasis:
 			b.WriteString("#emph[")
-			b.WriteString(inline(in.Children, doc))
+			b.WriteString(inlineAtStart(in.Children, doc))
 			b.WriteByte(']')
+			atStart = false
 		case markdown.Strong:
 			b.WriteString("#strong[")
-			b.WriteString(inline(in.Children, doc))
+			b.WriteString(inlineAtStart(in.Children, doc))
 			b.WriteByte(']')
+			atStart = false
 		case markdown.CodeSpan:
 			b.WriteString(`#raw("`)
 			b.WriteString(typstRawString(markdown.PlainInline(in.Children)))
 			b.WriteString(`")`)
+			atStart = false
 		case markdown.Footnote:
 			b.WriteString("#footnote[")
-			b.WriteString(inline(doc.Footnotes[in.Number], doc))
+			b.WriteString(inlineAtStart(doc.Footnotes[in.Number], doc))
 			b.WriteByte(']')
+			atStart = false
 		}
 	}
 	return b.String()

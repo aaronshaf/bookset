@@ -216,7 +216,10 @@ func parseInlines(node ast.Node, source []byte, doc *Document, issues *[]Issue) 
 }
 
 func appendText(inlines []Inline, value string) []Inline {
-	return append(inlines, Inline{Kind: Text, Text: html.UnescapeString(value)})
+	value = html.UnescapeString(value)
+	value = strings.ReplaceAll(value, `\<`, "<")
+	value = strings.ReplaceAll(value, `\>`, ">")
+	return append(inlines, Inline{Kind: Text, Text: value})
 }
 
 // collectFootnotes extracts definitions after parsing because goldmark places

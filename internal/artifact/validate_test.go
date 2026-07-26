@@ -154,6 +154,14 @@ func TestMissingFragmentAllowsFootnotesBetweenPageText(t *testing.T) {
 	}
 }
 
+func TestValidationChunksLongParagraphsAtExtractionBoundaries(t *testing.T) {
+	fragment := "That shift has loosened Utah's old reputation for closing ranks while a footnote separates the page boundary from the remaining body text."
+	chunks := validationChunks(fragment, 6)
+	if len(chunks) < 2 || chunks[0] != "that shift has loosened utah s" || !strings.Contains(chunks[1], "reputation") {
+		t.Fatalf("unexpected validation chunks: %#v", chunks)
+	}
+}
+
 func TestExpectedPDFFontFamiliesTrackRenderedRoles(t *testing.T) {
 	doc, parseIssues := markdown.Parse([]byte("# Title\n\nBody text.\n\n**THEN:** Context.\n"))
 	if issues := markdown.Validate(doc, parseIssues); len(issues) != 0 {

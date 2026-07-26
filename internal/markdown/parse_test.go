@@ -55,7 +55,7 @@ func TestLiteralAngleBracketsAndEntitiesPreserveText(t *testing.T) {
 	if issues := Validate(doc, parseIssues); len(issues) != 0 {
 		t.Fatal(FormatIssues(issues))
 	}
-	if got := doc.PlainText(); !strings.Contains(got, "<Moroni>") || !strings.Contains(got, "<Nephi>") {
+	if got := doc.PlainText(); strings.Contains(got, `\<Moroni>`) || !strings.Contains(got, "<Moroni>") || !strings.Contains(got, "<Nephi>") {
 		t.Fatalf("literal angle-bracket text was lost or not decoded: %q", got)
 	}
 }
