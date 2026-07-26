@@ -1,0 +1,20 @@
+name = "classic-trade"
+
+[typography]
+body_font = "Source Serif 4"
+body_size = "10.25pt"
+leading = "14.5pt"
+heading_font = "Source Serif 4"
+utility_font = "Source Sans 3"
+
+[layout]
+inside_margin = "0.85in"
+outside_margin = "0.70in"
+top_margin = "0.70in"
+bottom_margin = "0.75in"
+
+[pagination]
+running_heads = true
+
+[templates]
+dir = "../templates"

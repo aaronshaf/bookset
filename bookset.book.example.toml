@@ -1,0 +1,15 @@
+[book]
+title = "The Practice of Careful History"
+language = "en"
+trim = "6x9"
+
+[templates]
+dir = "templates/timeline-trade"
+
+[[chapters]]
+source = "testdata/semantic-chapter.md"
+style = "timeline-trade"
+
+[[chapters]]
+source = "testdata/semantic-chapter-2.md"
+style = "timeline-trade"

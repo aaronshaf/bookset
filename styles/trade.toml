@@ -1,0 +1,20 @@
+name = "trade"
+
+[typography]
+body_font = "Libertinus Serif"
+body_size = "10.25pt"
+leading = "14.5pt"
+heading_font = "Libertinus Serif"
+utility_font = "Libertinus Sans"
+
+[layout]
+inside_margin = "0.78in"
+outside_margin = "0.78in"
+top_margin = "0.78in"
+bottom_margin = "0.78in"
+
+[pagination]
+running_heads = true
+
+[templates]
+dir = "../templates"

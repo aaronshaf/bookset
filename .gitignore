@@ -1,0 +1,36 @@
+# Go build and test output
+/bin/
+/dist/
+/coverage.out
+/coverage.html
+
+# Generated book artifacts. Keep source templates and fixtures trackable.
+/out/
+/render/
+/artifacts/
+*.pdf
+*.epub
+*.typ
+*.xhtml
+!templates/**/*.typ
+!templates/**/*.xhtml
+!templates/**/*.css
+
+# Temporary manuscript/rendering work
+/.tmp/
+*.tmp
+*.bak
+*.swp
+*.swo
+
+# Local tooling and operating-system files
+.DS_Store
+.idea/
+.vscode/
+.fleet/
+.claude/settings.local.json
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example

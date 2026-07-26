@@ -1,0 +1,1 @@
+body{font-family:"{{.BodyFont}}";font-size:{{.BodySize}};line-height:1.45}h1,h2,h3{font-family:"{{.HeadingFont}}"}.chapter-label,.then-now strong,.timeline-item strong{font-family:"{{.UtilityFont}}"}blockquote{margin:1em 2em;font-style:italic}li{margin:.3em 0}.footnotes{border-top:1px solid #999;margin-top:2em;font-size:.9em}

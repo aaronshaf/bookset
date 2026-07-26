@@ -1,0 +1,28 @@
+[book]
+title = "Sample Book"
+language = "en"
+trim = "6x9"
+
+[typography]
+body_font = "Source Serif 4"
+body_size = "10.25pt"
+leading = "14.5pt"
+heading_font = "Source Serif 4"
+
+[layout]
+inside_margin = "0.85in"
+outside_margin = "0.70in"
+top_margin = "0.70in"
+bottom_margin = "0.75in"
+
+[pagination]
+timeline_page_count = 2
+page_break_after_then_now = true
+running_heads = true
+
+[templates]
+dir = "templates"
+
+# Optional release-build font lock. Paths are relative to this file.
+# [fonts]
+# manifest = "fonts.lock.toml"

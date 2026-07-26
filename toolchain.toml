@@ -1,0 +1,9 @@
+[go]
+minimum_version = "1.25"
+
+[typst]
+version = "0.15.1"
+
+[render-ci]
+preset = "trade"
+pdf_inspection = "poppler-utils"

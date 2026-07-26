@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/aaronshaf/bookset/schema/artifact-inspection.v1.json",
+  "title": "bookset artifact inspection report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "status", "artifact", "checks", "issues"],
+  "properties": {
+    "schema": { "const": "bookset.artifact-inspection.v1" },
+    "status": { "enum": ["ok", "warning", "error"] },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "format", "size_bytes", "sha256"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "format": { "enum": ["pdf", "epub"] },
+        "size_bytes": { "type": "integer", "minimum": 1 },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "pdf": { "$ref": "#/$defs/pdf" },
+        "epub": { "$ref": "#/$defs/epub" }
+      }
+    },
+    "source": { "$ref": "#/$defs/source" },
+    "checks": { "type": "array", "items": { "$ref": "#/$defs/check" } },
+    "issues": { "type": "array", "items": { "$ref": "#/$defs/issue" } }
+  },
+  "$defs": {
+    "pdf": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pages": { "type": "integer", "minimum": 1 },
+        "page_size": { "type": "string" },
+        "fonts": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "epub": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entries", "chapter_files"],
+      "properties": {
+        "entries": { "type": "array", "items": { "type": "string" } },
+        "chapter_files": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "title", "author", "language", "chapters", "footnotes"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "title": { "type": "string" },
+        "author": { "type": "string" },
+        "language": { "type": "string" },
+        "chapters": { "type": "integer", "minimum": 1 },
+        "footnotes": { "type": "integer", "minimum": 0 },
+        "chapter_paths": { "type": "array", "items": { "type": "string" } },
+        "chapter_titles": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "severity", "status", "message"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1 },
+        "severity": { "enum": ["info", "warning", "error"] },
+        "status": { "enum": ["pass", "unavailable", "invalid", "missing", "unsupported"] },
+        "message": { "type": "string" }
+      }
+    },
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "severity", "message"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1 },
+        "severity": { "const": "error" },
+        "message": { "type": "string" },
+        "chapter": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}
