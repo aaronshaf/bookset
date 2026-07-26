@@ -33,7 +33,7 @@
     grid(
       columns: (1fr, auto, 1fr),
       align: (left, center, right),
-      [#counter(page).display()],
+      [#bookset-folio(p)],
       [#text(font: "{{.UtilityFont}}", size: 7.5pt, weight: "medium", tracking: 0.08em, fill: rgb("555555"))[#upper("{{.BookTitle}}")]],
       [],
     )
@@ -43,14 +43,14 @@
       align: (left, center, right),
       [],
       [#text(font: "{{.HeadingFont}}", size: 7.5pt, style: "italic", fill: rgb("555555"))[#bookset-chapter.get()]],
-      [#counter(page).display()],
+      [#bookset-folio(p)],
     )
   }
 }
 
 #set page(header: context {
   let p = counter(page).get().first()
-  if p > 1 {
+  if bookset-running-heads.get() and p > 1 {
     v(0.18in)
     running-head(p)
   }

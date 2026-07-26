@@ -108,6 +108,21 @@ func TestLoadTOCEntryDefaultsTitleAndRejectsInvalidForms(t *testing.T) {
 	}
 }
 
+func TestPrintSectionsDefaultByKindAndRemainOrdered(t *testing.T) {
+	if got, _ := resolvedPrintSection("", "toc"); got != "front" {
+		t.Fatalf("toc section=%q", got)
+	}
+	if got, _ := resolvedPrintSection("", "chapter"); got != "main" {
+		t.Fatalf("chapter section=%q", got)
+	}
+	if got, _ := resolvedPrintSection("", "back-matter"); got != "back" {
+		t.Fatalf("back section=%q", got)
+	}
+	if _, err := resolvedPrintSection("appendix", "chapter"); err == nil {
+		t.Fatal("invalid section accepted")
+	}
+}
+
 func TestLoadRejectsMixedLegacyAndTypedManifest(t *testing.T) {
 	_, err := Load(config.Project{Chapters: []config.Chapter{{Source: "one.md"}}, Contents: []config.Content{{ID: "one", Kind: "chapter", Source: "one.md"}}})
 	if err == nil {

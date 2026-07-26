@@ -27,6 +27,7 @@ type Config struct {
 	Bottom                 string
 	Trim                   string
 	RunningHeads           bool
+	FrontMatterFolios      string
 	TemplateDir            string
 	TemplateRequired       bool
 	FontManifest           string
@@ -48,11 +49,11 @@ func Preset(name, language string) (Config, bool) {
 	}
 	switch name {
 	case "trade":
-		return Config{Name: name, Margin: "0.78in", BodyFont: "Source Serif 4", HeadingFont: "Source Serif 4", UtilityFont: "Source Sans 3", Language: language, BodySize: "10.25pt", Leading: "14.5pt", Trim: "6x9", RunningHeads: true, TemplateDir: "templates"}, true
+		return Config{Name: name, Margin: "0.78in", BodyFont: "Source Serif 4", HeadingFont: "Source Serif 4", UtilityFont: "Source Sans 3", Language: language, BodySize: "10.25pt", Leading: "14.5pt", Trim: "6x9", RunningHeads: true, FrontMatterFolios: "roman", TemplateDir: "templates"}, true
 	case "classic-trade":
-		return Config{Name: name, Margin: "(inside: 0.85in, outside: 0.70in, top: 0.70in, bottom: 0.75in)", BodyFont: "Source Serif 4", HeadingFont: "Source Serif 4", UtilityFont: "Source Sans 3", Language: language, BodySize: "10.25pt", Leading: "14.5pt", Trim: "6x9", RunningHeads: true, TemplateDir: "templates"}, true
+		return Config{Name: name, Margin: "(inside: 0.85in, outside: 0.70in, top: 0.70in, bottom: 0.75in)", BodyFont: "Source Serif 4", HeadingFont: "Source Serif 4", UtilityFont: "Source Sans 3", Language: language, BodySize: "10.25pt", Leading: "14.5pt", Trim: "6x9", RunningHeads: true, FrontMatterFolios: "roman", TemplateDir: "templates"}, true
 	case "timeline-trade":
-		return Config{Name: name, Margin: "(inside: 0.85in, outside: 0.70in, top: 0.70in, bottom: 0.75in)", BodyFont: "Source Serif 4", HeadingFont: "Source Serif 4", UtilityFont: "Source Sans 3", Language: language, BodySize: "10pt", Leading: "15.5pt", Trim: "6x9", RunningHeads: true, TemplateDir: "templates/timeline-trade", PageBreakAfterThenNow: true, PageBreakAfterTimeline: true, HideTimelineHeading: true, TimelinePageCount: 2, SectionNumbering: false}, true
+		return Config{Name: name, Margin: "(inside: 0.85in, outside: 0.70in, top: 0.70in, bottom: 0.75in)", BodyFont: "Source Serif 4", HeadingFont: "Source Serif 4", UtilityFont: "Source Sans 3", Language: language, BodySize: "10pt", Leading: "15.5pt", Trim: "6x9", RunningHeads: true, FrontMatterFolios: "roman", TemplateDir: "templates/timeline-trade", PageBreakAfterThenNow: true, PageBreakAfterTimeline: true, HideTimelineHeading: true, TimelinePageCount: 2, SectionNumbering: false}, true
 	default:
 		return Config{}, false
 	}
@@ -91,6 +92,12 @@ func ApplyProject(cfg Config, project config.Project) (Config, error) {
 	}
 	if project.Pagination.RunningHeads {
 		cfg.RunningHeads = true
+	}
+	if value := project.Pagination.FrontMatterFolios; value != "" {
+		if value != "roman" && value != "none" {
+			return Config{}, fmt.Errorf("unsupported front_matter_folios %q; use roman or none", value)
+		}
+		cfg.FrontMatterFolios = value
 	}
 	if project.Pagination.PageBreakAfterThenNow {
 		cfg.PageBreakAfterThenNow = true

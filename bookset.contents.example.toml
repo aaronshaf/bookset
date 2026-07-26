@@ -5,6 +5,9 @@ trim = "6x9"
 chapter_label = "CHAPTER"
 chapter_numbering = true
 
+[pagination]
+front_matter_folios = "roman"
+
 [templates]
 dir = "templates/timeline-trade"
 

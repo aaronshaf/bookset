@@ -41,10 +41,11 @@ type Layout struct {
 	BottomMargin  string `toml:"bottom_margin"`
 }
 type Pagination struct {
-	TimelinePageCount      int  `toml:"timeline_page_count"`
-	PageBreakAfterThenNow  bool `toml:"page_break_after_then_now"`
-	PageBreakAfterTimeline bool `toml:"page_break_after_timeline"`
-	RunningHeads           bool `toml:"running_heads"`
+	TimelinePageCount      int    `toml:"timeline_page_count"`
+	PageBreakAfterThenNow  bool   `toml:"page_break_after_then_now"`
+	PageBreakAfterTimeline bool   `toml:"page_break_after_timeline"`
+	RunningHeads           bool   `toml:"running_heads"`
+	FrontMatterFolios      string `toml:"front_matter_folios"`
 }
 
 type Templates struct {
@@ -72,6 +73,7 @@ type Content struct {
 	Title        string `toml:"title"`
 	ChapterLabel string `toml:"chapter_label"`
 	TOC          *bool  `toml:"toc"`
+	PrintSection string `toml:"print_section"`
 }
 
 func Load(path string) (Project, error) {

@@ -27,6 +27,12 @@ assembled from separately numbered PDFs. EPUB retains its canonical
 `nav.xhtml`; the print-only TOC is omitted from the EPUB spine. `[[chapters]]`
 remains supported for compatibility; the two manifest forms cannot be mixed.
 
+Print sections are explicit book semantics, not post-processing: each typed
+entry belongs to `front`, `main`, or `back` (normally inferred from its kind).
+Front matter uses lowercase Roman folios and no running heads; the main section
+resets the page counter to 1; back matter continues the Arabic sequence. The
+PDF TOC formats each target's counter according to that same section policy.
+
 Book builds validate the final artifact against every manifest chapter before
 reporting success. The same check is available explicitly with
 `bookset validate --config bookset.toml --artifact book.pdf` (or `.epub`).

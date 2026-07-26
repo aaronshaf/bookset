@@ -51,6 +51,9 @@ func sourceDocumentsFromTemplate(docs []*markdown.Document, cfg style.Config, te
 			}
 			content.WriteString("#pagebreak()\n")
 		}
+		if i == 0 || chapter.PrintSection != docs[i-1].PrintSection {
+			writePrintSection(&content, chapter.PrintSection, cfg)
+		}
 		if chapter.BookID != "" && !chapter.ExcludeFromTOC && chapter.BookKind != "toc" {
 			fmt.Fprintf(&content, "#label(%q)\n", tocLabel(chapter.BookID))
 		}
@@ -72,6 +75,18 @@ func sourceDocumentsFromTemplate(docs []*markdown.Document, cfg style.Config, te
 	return out.String()
 }
 
+func writePrintSection(content *strings.Builder, section string, cfg style.Config) {
+	if section == "front" {
+		fmt.Fprintf(content, "#bookset-folios.update(%q)\n#bookset-running-heads.update(false)\n", cfg.FrontMatterFolios)
+		return
+	}
+	if section == "main" {
+		content.WriteString("#bookset-folios.update(\"arabic\")\n#bookset-running-heads.update(true)\n#counter(page).update(1)\n")
+		return
+	}
+	content.WriteString("#bookset-folios.update(\"arabic\")\n#bookset-running-heads.update(true)\n")
+}
+
 func tocLabel(id string) string { return "bookset-toc-" + id }
 
 func writeTOC(content *strings.Builder, docs []*markdown.Document, toc *markdown.Document, cfg style.Config) {
@@ -85,7 +100,14 @@ func writeTOC(content *strings.Builder, docs []*markdown.Document, toc *markdown
 		if title == "" {
 			continue
 		}
-		fmt.Fprintf(content, "#block(above: .3em, below: .3em)[#link(label(%q))[%s] #h(1fr) #context counter(page).at(label(%q)).first()]\n", tocLabel(doc.BookID), typstEscape(title), tocLabel(doc.BookID))
+		folio := fmt.Sprintf("#context counter(page).at(label(%q)).first()", tocLabel(doc.BookID))
+		if doc.PrintSection == "front" && cfg.FrontMatterFolios == "roman" {
+			folio = fmt.Sprintf("#context numbering(\"i\", counter(page).at(label(%q)).first())", tocLabel(doc.BookID))
+		}
+		if doc.PrintSection == "front" && cfg.FrontMatterFolios == "none" {
+			folio = ""
+		}
+		fmt.Fprintf(content, "#block(above: .3em, below: .3em)[#link(label(%q))[%s] #h(1fr) %s]\n", tocLabel(doc.BookID), typstEscape(title), folio)
 	}
 }
 
@@ -156,6 +178,7 @@ func setup(doc *markdown.Document, cfg style.Config) string {
 	}
 	fmt.Fprintf(&b, "#set text(font: %q, size: %s, weight: 350, tracking: -0.01em, features: (\"kern\", \"liga\", \"onum\"), costs: (widow: 50%%, orphan: 50%%), lang: %q, hyphenate: true)\n", cfg.BodyFont, bodySize, cfg.Language)
 	b.WriteString("#let bookset-chapter = state(\"bookset-chapter\", [])\n")
+	b.WriteString("#let bookset-folios = state(\"bookset-folios\", \"arabic\")\n#let bookset-running-heads = state(\"bookset-running-heads\", true)\n#let bookset-folio(value) = if bookset-folios.get() == \"roman\" { numbering(\"i\", value) } else { value }\n")
 	fmt.Fprintf(&b, "#set par(justify: true, leading: %s, first-line-indent: 0.23in, spacing: 0.60em)\n", leading)
 	fmt.Fprintf(&b, "#show heading.where(level: 1): it => block(above: 1.2em, below: .6em)[#align(center)[#text(font: %q, size: 16pt)[#it.body]]]\n", cfg.HeadingFont)
 	fmt.Fprintf(&b, "#show heading.where(level: 2): it => block(above: .8em, below: .4em)[#text(font: %q, size: 11pt, weight: \"bold\")[#it.body]]\n", cfg.UtilityFont)
@@ -164,8 +187,8 @@ func setup(doc *markdown.Document, cfg style.Config) string {
 		if bookTitle == "" {
 			bookTitle = doc.Title
 		}
-		fmt.Fprintf(&b, "#let running-head(p) = { if calc.even(p) { grid(columns: (1fr, auto, 1fr), align: (left, center, right), [#counter(page).display()], [#text(size: 7.5pt, font: %q, weight: \"medium\", tracking: 0.08em)[#upper(%q)]], []) } else { grid(columns: (1fr, auto, 1fr), align: (left, center, right), [], [#text(size: 7.5pt, font: %q, style: \"italic\")[#bookset-chapter.get()]], [#counter(page).display()]) } }\n", cfg.UtilityFont, bookTitle, cfg.HeadingFont)
-		b.WriteString("#set page(header: context { let p = counter(page).get().first(); if p > 1 { running-head(p) } })\n")
+		fmt.Fprintf(&b, "#let running-head(p) = { if calc.even(p) { grid(columns: (1fr, auto, 1fr), align: (left, center, right), [#bookset-folio(p)], [#text(size: 7.5pt, font: %q, weight: \"medium\", tracking: 0.08em)[#upper(%q)]], []) } else { grid(columns: (1fr, auto, 1fr), align: (left, center, right), [], [#text(size: 7.5pt, font: %q, style: \"italic\")[#bookset-chapter.get()]], [#bookset-folio(p)]) } }\n", cfg.UtilityFont, bookTitle, cfg.HeadingFont)
+		b.WriteString("#set page(header: context { let p = counter(page).get().first(); if bookset-running-heads.get() and p > 1 { running-head(p) } })\n")
 	} else {
 		b.WriteString("#set page(header: none, footer: none)\n")
 	}

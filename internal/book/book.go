@@ -25,6 +25,7 @@ func Load(project config.Project) (Manuscript, error) {
 	var result Manuscript
 	chapterNumber := 0
 	tocCount := 0
+	previousSection := -1
 	seenIDs := map[string]bool{}
 	for index, entry := range contents {
 		if entry.ID == "" {
@@ -39,6 +40,15 @@ func Load(project config.Project) (Manuscript, error) {
 		}
 		if !validKind(entry.Kind) {
 			return Manuscript{}, fmt.Errorf("contents entry %q has unsupported kind %q", entry.ID, entry.Kind)
+		}
+		section, sectionErr := resolvedPrintSection(entry.PrintSection, entry.Kind)
+		if sectionErr != nil {
+			return Manuscript{}, fmt.Errorf("contents entry %q: %w", entry.ID, sectionErr)
+		}
+		if rank := printSectionRank(section); rank < previousSection {
+			return Manuscript{}, fmt.Errorf("contents entry %q moves from %s back to %s; print sections must remain ordered", entry.ID, printSectionName(previousSection), section)
+		} else {
+			previousSection = rank
 		}
 		var doc *markdown.Document
 		if entry.Kind == "part" {
@@ -74,7 +84,7 @@ func Load(project config.Project) (Manuscript, error) {
 				return Manuscript{}, fmt.Errorf("contents entry %q: %s", entry.ID, markdown.FormatIssues(parseIssues))
 			}
 		}
-		doc.BookID, doc.BookKind = entry.ID, entry.Kind
+		doc.BookID, doc.BookKind, doc.PrintSection = entry.ID, entry.Kind, section
 		doc.ExcludeFromTOC = entry.Kind == "toc" || !tocDefault(entry.Kind, entry.TOC)
 		if entry.Title != "" {
 			doc.Title = entry.Title
@@ -127,6 +137,32 @@ func orderedContents(project config.Project) ([]config.Content, error) {
 func validKind(kind string) bool {
 	return kind == "front-matter" || kind == "part" || kind == "chapter" || kind == "back-matter" || kind == "toc"
 }
+
+func resolvedPrintSection(value, kind string) (string, error) {
+	if value != "" {
+		if value == "front" || value == "main" || value == "back" {
+			return value, nil
+		}
+		return "", fmt.Errorf("unsupported print_section %q; use front, main, or back", value)
+	}
+	if kind == "front-matter" || kind == "toc" {
+		return "front", nil
+	}
+	if kind == "back-matter" {
+		return "back", nil
+	}
+	return "main", nil
+}
+func printSectionRank(section string) int {
+	if section == "front" {
+		return 0
+	}
+	if section == "main" {
+		return 1
+	}
+	return 2
+}
+func printSectionName(rank int) string { return []string{"front", "main", "back"}[rank] }
 func tocDefault(kind string, value *bool) bool {
 	if value != nil {
 		return *value

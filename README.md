@@ -118,6 +118,13 @@ native `nav.xhtml` instead, so the synthetic PDF TOC is omitted from its spine.
 `toc = false` excludes an entry from both navigation systems. The legacy
 `[[chapters]]` format remains supported, but a manifest may not mix both forms.
 
+Typed entries can also set `print_section = "front"`, `"main"`, or `"back"`.
+The default follows the kind: front matter and the PDF TOC are front, parts and
+chapters are main, and back matter is back. Front matter uses lowercase Roman
+folios without running heads; main matter restarts at page 1; back matter
+continues Arabic numbering. Set `[pagination].front_matter_folios = "none"`
+to suppress front folios.
+
 Custom template directories are trusted publishing inputs. Rendering a custom
 Typst template evaluates its Typst source, so do not render templates obtained
 from an untrusted party.

@@ -6,6 +6,7 @@ type Document struct {
 	SourcePath     string
 	BookID         string
 	BookKind       string
+	PrintSection   string
 	ExcludeFromTOC bool
 	Title          string
 	Author         string

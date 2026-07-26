@@ -93,6 +93,21 @@ func TestSourceDocumentsCreatesLinkedTOCWithFinalPageCounters(t *testing.T) {
 	}
 }
 
+func TestSourceDocumentsSetsFrontAndMainFolioPolicy(t *testing.T) {
+	front := &markdown.Document{BookID: "contents", BookKind: "toc", PrintSection: "front", Title: "Contents", ExcludeFromTOC: true}
+	chapter, issues := markdown.Parse([]byte("# Chapter One\n\nText.\n"))
+	if len(issues) != 0 {
+		t.Fatal(markdown.FormatIssues(issues))
+	}
+	chapter.BookID, chapter.BookKind, chapter.PrintSection = "one", "chapter", "main"
+	source := SourceDocuments([]*markdown.Document{front, chapter}, style.Trade("en"))
+	for _, want := range []string{`#bookset-folios.update("roman")`, `#bookset-running-heads.update(false)`, `#counter(page).update(1)`} {
+		if !strings.Contains(source, want) {
+			t.Errorf("source missing %q:\n%s", want, source)
+		}
+	}
+}
+
 func TestSourceMarkersAndDiagnosticMapping(t *testing.T) {
 	doc, parseIssues := markdown.Parse([]byte("# Title\n\nParagraph.\n"))
 	if issues := markdown.Validate(doc, parseIssues); len(issues) != 0 {
