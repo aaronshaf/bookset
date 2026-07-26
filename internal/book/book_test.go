@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/aaronshaf/bookset/internal/config"
+	"github.com/aaronshaf/bookset/internal/markdown"
 )
 
 func TestLoadBookManifest(t *testing.T) {
@@ -120,6 +121,27 @@ func TestPrintSectionsDefaultByKindAndRemainOrdered(t *testing.T) {
 	}
 	if _, err := resolvedPrintSection("appendix", "chapter"); err == nil {
 		t.Fatal("invalid section accepted")
+	}
+}
+
+func TestAuditBuildsPlanAndRejectsDuplicateOrEmptySources(t *testing.T) {
+	first := &markdown.Document{BookID: "one", BookKind: "chapter", PrintSection: "main", SourcePath: "chapters/one.md", Title: "One", Blocks: []markdown.Block{{Kind: markdown.Heading, Level: 1, Inlines: []markdown.Inline{{Kind: markdown.Text, Text: "One"}}}, {Kind: markdown.Paragraph, Inlines: []markdown.Inline{{Kind: markdown.Text, Text: "Body text"}}}}}
+	second := &markdown.Document{BookID: "two", BookKind: "chapter", PrintSection: "main", SourcePath: "chapters/two.md", Title: "Two", Blocks: []markdown.Block{{Kind: markdown.Heading, Level: 1, Inlines: []markdown.Inline{{Kind: markdown.Text, Text: "Two"}}}, {Kind: markdown.Paragraph, Inlines: []markdown.Inline{{Kind: markdown.Text, Text: "More body"}}}}}
+	plan, err := Audit(Manuscript{Documents: []*markdown.Document{first, second}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Summary.Chapters != 2 || plan.Entries[1].Chapter != 2 || plan.Entries[0].BodyWords != 2 {
+		t.Fatalf("unexpected plan: %#v", plan)
+	}
+	second.SourcePath = first.SourcePath
+	if _, err := Audit(Manuscript{Documents: []*markdown.Document{first, second}}); err == nil {
+		t.Fatal("duplicate source accepted")
+	}
+	second.SourcePath = "chapters/two.md"
+	second.Blocks = second.Blocks[:1]
+	if _, err := Audit(Manuscript{Documents: []*markdown.Document{second}}); err == nil {
+		t.Fatal("heading-only source accepted")
 	}
 }
 

@@ -150,6 +150,14 @@ page before the PDF book sequence. PDF rendering stages that asset inside
 Typst's isolated render directory; it does not alter a legacy manifest unless
 you enable the option.
 
+Before a whole-book build, review the resolved manifest and catch duplicate or
+empty source entries with:
+
+```sh
+bookset plan --config bookset.toml
+bookset plan --config bookset.toml --json
+```
+
 Typed entries can also set `print_section = "front"`, `"main"`, or `"back"`.
 The default follows the kind: front matter and the PDF TOC are front, parts and
 chapters are main, and back matter is back. Front matter uses lowercase Roman

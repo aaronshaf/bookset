@@ -34,6 +34,8 @@ func main() {
 		render(os.Args[2:])
 	case "build":
 		build(os.Args[2:])
+	case "plan":
+		plan(os.Args[2:])
 	case "validate":
 		validate(os.Args[2:])
 	case "inspect":
@@ -41,6 +43,53 @@ func main() {
 	default:
 		usage()
 		os.Exit(2)
+	}
+}
+
+func plan(args []string) {
+	flags := flag.NewFlagSet("plan", flag.ExitOnError)
+	configPath := flags.String("config", "", "book TOML configuration")
+	jsonOutput := flags.Bool("json", false, "write a machine-readable plan")
+	flags.Parse(args)
+	if *configPath == "" || flags.NArg() != 0 {
+		fmt.Fprintln(os.Stderr, "usage: bookset plan --config bookset.toml [--json]")
+		os.Exit(2)
+	}
+	project, err := config.Load(*configPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "bookset:", err)
+		os.Exit(2)
+	}
+	manuscript, err := book.Load(project)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "bookset:", err)
+		os.Exit(1)
+	}
+	report, err := book.Audit(manuscript)
+	if *jsonOutput {
+		data, marshalErr := json.MarshalIndent(report, "", "  ")
+		if marshalErr != nil {
+			fmt.Fprintln(os.Stderr, "bookset:", marshalErr)
+			os.Exit(1)
+		}
+		fmt.Println(string(data))
+	} else {
+		for _, entry := range report.Entries {
+			chapter := ""
+			if entry.Chapter > 0 {
+				chapter = fmt.Sprintf(" chapter=%d", entry.Chapter)
+			}
+			source := ""
+			if entry.Source != "" {
+				source = " source=" + entry.Source
+			}
+			fmt.Printf("%s kind=%s section=%s toc=%t words=%d%s%s title=%q\n", entry.ID, entry.Kind, entry.Section, entry.TOC, entry.BodyWords, chapter, source, entry.Title)
+		}
+		fmt.Printf("summary: documents=%d chapters=%d front=%d main=%d back=%d\n", report.Summary.Documents, report.Summary.Chapters, report.Summary.Front, report.Summary.Main, report.Summary.Back)
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "bookset:", err)
+		os.Exit(1)
 	}
 }
 
@@ -432,6 +481,7 @@ func usage() {
 	fmt.Println("  bookset render --format pdf --sheet letter --trim-marks --output FILE INPUT.md")
 	fmt.Println("  bookset render --format pdf|epub --style trade|classic-trade|timeline-trade --output FILE INPUT.md")
 	fmt.Println("  bookset build --config bookset.toml --format pdf|epub [--typst-source FILE] --output FILE")
+	fmt.Println("  bookset plan --config bookset.toml [--json]")
 	fmt.Println("  bookset validate [--config bookset.toml] [--artifact FILE] INPUT.md")
 	fmt.Println("  bookset inspect [--json] INPUT.md")
 	fmt.Println("  bookset inspect --artifact FILE [--config bookset.toml | INPUT.md] [--json] [--strict]")
