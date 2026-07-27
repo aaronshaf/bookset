@@ -19,6 +19,13 @@ validates EPUB 3 output as a ZIP container, and compiles PDF output through
 Typst. The model and validation layer are deliberately small so subject-
 specific templates can be added without changing manuscript semantics.
 
+## Agent workflow
+
+For an agent-safe complete-book workflow, start with [AGENTS.md](AGENTS.md)
+and [the publishing workflow](docs/agent-workflow.md). They define the
+read-only preflight, build, proof, inspection, and release-validation sequence
+and explain which layer should be fixed when something fails.
+
 ## Installation
 
 Install the command-line tool with Go:
